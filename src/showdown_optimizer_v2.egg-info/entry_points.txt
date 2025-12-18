@@ -1,0 +1,2 @@
+[console_scripts]
+dfs-opt = dfs_opt.cli.main:app

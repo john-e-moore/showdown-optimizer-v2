@@ -1,0 +1,59 @@
+Metadata-Version: 2.4
+Name: showdown-optimizer-v2
+Version: 0.1.0
+Summary: DFS showdown optimizer/training pipelines (Pipeline A/B)
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+Requires-Dist: numpy>=1.26.0
+Requires-Dist: pandas>=2.2.0
+Requires-Dist: pydantic>=2.7.0
+Requires-Dist: pyyaml>=6.0.1
+Requires-Dist: typer>=0.12.3
+Requires-Dist: pyarrow>=16.0.0
+Requires-Dist: structlog>=24.1.0
+Provides-Extra: dev
+Requires-Dist: pytest>=8.2.0; extra == "dev"
+Requires-Dist: ruff>=0.6.0; extra == "dev"
+Requires-Dist: black>=24.4.2; extra == "dev"
+Requires-Dist: isort>=5.13.2; extra == "dev"
+
+# Showdown-optimizer-v2
+
+This repo implements two composable pipelines:
+- **Pipeline A (training)**: raw projections + DK contest exports → enriched entries → target distributions.
+- **Pipeline B (contest execution)**: (later) build/weight/sample lineups and fill `DKEntries`.
+
+Canonical specs live in:
+- `/home/john/showdown-optimizer-v2/agent/ARCHITECTURE.md`
+- `/home/john/showdown-optimizer-v2/agent/PIPELINES.md`
+- `/home/john/showdown-optimizer-v2/agent/DATA_CONTRACTS.md`
+
+## Setup
+
+Create a venv and install:
+
+```bash
+python -m venv venv
+source venv/bin/activate
+pip install -e '.[dev]'
+```
+
+## Run Pipeline A (training)
+
+Example (use your local data under `data/`):
+
+```bash
+dfs-opt training run --data-root data/historical/raw --artifacts-root artifacts
+```
+
+Filter to a single segment bucket:
+
+```bash
+dfs-opt training run --data-root data/historical/raw --artifacts-root artifacts --gpp-category nba-showdown-mme-1k-10k
+```
+
+## Tests
+
+```bash
+pytest -q
+```

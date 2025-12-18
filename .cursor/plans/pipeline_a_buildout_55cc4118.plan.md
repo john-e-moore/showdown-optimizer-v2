@@ -4,35 +4,35 @@ overview: "Set up a clean Python project skeleton (packaging, config, CLI, artif
 todos:
   - id: skeleton-packaging
     content: Add pyproject-based Python package skeleton (`src/dfs_opt`), CLI entrypoint, and baseline dependencies/tooling.
-    status: pending
+    status: completed
   - id: artifacts-manifests
     content: Implement artifact writer + run/step manifest schemas and utilities (hashing, schema/data fingerprints).
-    status: pending
+    status: completed
     dependencies:
       - skeleton-packaging
   - id: pipeline-a-parsers
     content: "Implement Pipeline A steps 00–02: ingest inventory, Sabersim projections parsing, DK standings + lineup parsing, plus unit tests."
-    status: pending
+    status: completed
     dependencies:
       - artifacts-manifests
   - id: pipeline-a-enrich
     content: Implement step 03 join+enrich (salary/proj/stack/archetype/dup_count) as pure transforms with unit tests.
-    status: pending
+    status: completed
     dependencies:
       - pipeline-a-parsers
   - id: pipeline-a-optimal
     content: Implement step 04 brute-force optimal and gap computation with caching and tests.
-    status: pending
+    status: completed
     dependencies:
       - pipeline-a-enrich
   - id: pipeline-a-distributions
     content: Implement step 05 distribution fitting + JSON schemas + validation, and add golden tests using historical sample data.
-    status: pending
+    status: completed
     dependencies:
       - pipeline-a-optimal
   - id: pipeline-a-cli-run
     content: Wire end-to-end `dfs-opt training run` CLI including `--gpp-category` filtering and ensure artifacts are written per spec.
-    status: pending
+    status: completed
     dependencies:
       - pipeline-a-distributions
 ---
