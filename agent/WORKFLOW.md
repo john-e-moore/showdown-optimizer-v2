@@ -47,3 +47,13 @@ Every CLI run must:
 - If a file format changes: update DATA_CONTRACTS.
 - If a pipeline step changes: update PIPELINES.
 - If architecture changes: update ARCHITECTURE.
+
+
+## 6) Inspecting artifacts (required dev loop)
+After each slice, the agent must demonstrate debuggability by pointing to artifacts:
+- open `artifacts/<pipeline>/<run_id>/steps/<NN_step>/preview.csv`
+- check `schema.json` for dtype drift
+- check `step_manifest.json` for row counts and metrics
+
+If a bug is reported, first reproduce it by re-running with the same config + seed and comparing
+`schema_fingerprint` and `data_fingerprint` across runs.

@@ -39,3 +39,12 @@
 - `pytest -q`
 - `ruff`/`flake8`/`black --check`
 - `mypy`/`pyright` (choose one)
+
+
+## Artifact/manifest tests (required)
+Add tests that assert:
+- Every pipeline run creates `run_manifest.json`.
+- Every declared step creates a `step_manifest.json`, `preview.csv`, and `schema.json`.
+- Manifests include required keys (see DATA_CONTRACTS).
+- `schema_fingerprint` changes only when the schema truly changes (golden test).
+- `row_count_out` matches the persisted output file when `persist_step_outputs=true`.

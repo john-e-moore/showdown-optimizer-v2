@@ -89,3 +89,25 @@ Minimum keys:
 - `outputs` (paths + checksums)
 - `row_counts_by_step`
 - `warnings` (structured list)
+
+
+## 7) Step manifests (required for every transformation)
+**Name:** `step_manifest.json` (one per step folder)
+
+Minimum keys:
+- `run_id`
+- `pipeline`
+- `step_name`
+- `started_at`, `finished_at`, `duration_s`
+- `inputs`: list of `{path, checksum_sha256, logical_name}`
+- `outputs`: list of `{path, checksum_sha256, logical_name}`
+- `row_count_in`, `row_count_out`
+- `schema_fingerprint` (hash of canonicalized column names + dtypes)
+- `data_fingerprint` (hash of canonicalized preview rows; used for quick regression checks)
+- `metrics`: dict (step-specific; e.g., parse_success_rate, unmatched_names, dup_rate)
+- `warnings`: list of structured warnings `{code, message, sample_rows?}`
+- `errors`: list (only if step handled/continued)
+
+Sidecar files expected in the same folder:
+- `preview.csv`
+- `schema.json`

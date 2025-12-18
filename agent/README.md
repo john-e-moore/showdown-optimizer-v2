@@ -4,6 +4,7 @@ This folder is the **single source of truth** for how the codebase must be built
 Any AI coding agent must follow these documents as hard requirements.
 
 ## Non‑negotiables
+- **Artifacts + metadata for every step:** each transformation writes a step artifact folder with previews + a `step_manifest.json` you can inspect.
 - **Idempotent pipelines:** same inputs + same config ⇒ same outputs (byte-for-byte where feasible).
 - **Data contracts:** every transformation produces documented schema + metadata.
 - **DRY, but readable:** prefer small, named functions over clever reuse.

@@ -11,6 +11,7 @@ Raw projections + correlations + DKEntries template → candidate pool → rewei
 
 ## Required directory structure
 ```
+
 .
 ├─ src/
 │  └─ dfs_opt/
@@ -54,3 +55,26 @@ Raw projections + correlations + DKEntries template → candidate pool → rewei
 - `dfs_opt.cli.*` for command-line.
 
 Agents must not invent alternate “side pipelines” without updating this doc.
+
+
+## Artifacts layout (required)
+All pipeline runs must write debuggable artifacts under a stable path:
+
+```
+artifacts/
+  <pipeline_name>/                 # training | contest
+    <run_id>/                      # e.g. 2025-12-18T104455Z_ab12cd
+      run_manifest.json
+      logs/
+        run.log
+      steps/
+        00_ingest/
+          step_manifest.json
+          preview.csv              # small human-readable sample (<=200 rows)
+          schema.json              # column names + dtypes + null rates
+          outputs.parquet          # optional: step output persisted when enabled
+        01_parse/
+        ...
+```
+
+**Rule:** Step folders are append-only for that run. Never overwrite files in-place; write new files and update manifests.

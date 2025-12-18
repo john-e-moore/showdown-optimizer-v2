@@ -53,3 +53,17 @@
 - No notebooks checked in unless specifically requested.
 - No “quick” scripts containing business logic.
 - If adding a dependency, justify it in the PR description.
+
+
+## Artifact + metadata emission (mandatory)
+Every pipeline step must emit:
+- `preview.csv` (first N rows, N<=200, UTF-8)
+- `schema.json` (columns, dtypes, null counts/rates, example values if cheap)
+- `step_manifest.json` (inputs/outputs checksums + row counts + timings + metrics)
+
+Implementation rules:
+- Core transforms stay pure (no I/O). They return `(data, StepStats)` where `StepStats` holds metrics.
+- Orchestration code (pipeline runner) is responsible for writing artifacts via a shared utility
+  (e.g. `io/artifacts.py` with `ArtifactWriter.write_step(...)`).
+- Never sprinkle ad-hoc `to_csv()` throughout the codebase. **One place** owns artifact writing.
+- Always include `config_fingerprint` + `code_version` (git SHA if available) in manifests.
