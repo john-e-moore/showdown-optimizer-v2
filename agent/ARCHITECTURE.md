@@ -1,0 +1,56 @@
+# Architecture
+
+## Goal
+Two clear, composable pipelines with strict boundaries:
+
+1) **Training/Data pipeline**  
+Raw projections + contest standings/exports → enriched entry table → learned target distributions.
+
+2) **Contest execution pipeline**  
+Raw projections + correlations + DKEntries template → candidate pool → reweighting → diversified lineups → filled DKEntries.
+
+## Required directory structure
+```
+.
+├─ src/
+│  └─ dfs_opt/
+│     ├─ __init__.py
+│     ├─ config/              # pydantic settings, defaults, schema
+│     ├─ models/              # dataclasses / pydantic models (schemas)
+│     ├─ io/                  # readers/writers (csv/xlsx), path utilities
+│     ├─ parsing/             # DK lineup parsing, Sabersim parsing
+│     ├─ features/            # feature engineering (salary, stacks, archetypes, gaps)
+│     ├─ distributions/       # fit/validate target distributions
+│     ├─ lineup_pool/         # candidate generation (optimizer wrappers, randomness)
+│     ├─ reweighting/         # raking / max-entropy reweighting to targets
+│     ├─ simulation/          # score sims, contest sims, ROI, duplication-aware EV
+│     ├─ cli/                 # Typer/argparse entrypoints
+│     └─ utils/               # small shared helpers (pure functions only)
+├─ tests/
+│  ├─ fixtures/
+│  └─ test_*.py
+├─ scripts/                   # thin wrappers calling src (no business logic)
+├─ agent/                     # these docs
+└─ data/                      # ignored; local only (raw + outputs)
+```
+
+## Layering rules (imports)
+- `models` and `utils` must not import from higher layers.
+- `io` and `parsing` may import `models`, `utils`.
+- `features` may import `models`, `utils`, `parsing` (but not `simulation`).
+- `simulation` may import `features` but not `io` (simulation stays pure on in-memory data).
+- `cli` is the *only* layer allowed to orchestrate reading/writing + calling pipeline functions.
+
+## “One place” rules
+- **All schemas** live in `models/` and are referenced everywhere else.
+- **All file formats** live in `io/` (column mapping, encodings, etc).
+- **All parsing** lives in `parsing/` (string → structured).
+- **All feature engineering** lives in `features/` (structured → enriched).
+- **All randomness** is controlled via `config` and seeded at pipeline start.
+
+## Public API (what downstream code uses)
+- `dfs_opt.pipelines.training.run_training_pipeline(config) -> TrainingArtifacts`
+- `dfs_opt.pipelines.contest.run_contest_pipeline(config) -> ContestArtifacts`
+- `dfs_opt.cli.*` for command-line.
+
+Agents must not invent alternate “side pipelines” without updating this doc.
