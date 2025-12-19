@@ -88,9 +88,14 @@ def enrich_showdown_entries(
         joined = df[[slot_norm]].merge(
             p_small, how="left", left_on=slot_norm, right_on="name_norm", validate="many_to_one"
         )
-        df[f"{slot_prefix}_team"] = joined["slot_team"]
-        df[f"{slot_prefix}_salary"] = joined["slot_salary"]
-        df[f"{slot_prefix}_proj"] = joined["slot_proj"]
+        # NOTE: `entries` arrives here as a slice from a larger DataFrame; it often has a
+        # non-RangeIndex (original row labels). `merge()` returns a fresh RangeIndex.
+        # Assigning a Series to `df[col]` aligns on index labels, which can silently
+        # introduce NaNs (and cause massive row drops) when the indices don't match.
+        # We want positional assignment, not label alignment.
+        df[f"{slot_prefix}_team"] = joined["slot_team"].to_numpy()
+        df[f"{slot_prefix}_salary"] = joined["slot_salary"].to_numpy()
+        df[f"{slot_prefix}_proj"] = joined["slot_proj"].to_numpy()
 
     join_slot("cpt")
     for i in range(1, 6):

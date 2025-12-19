@@ -3,6 +3,7 @@ pyproject.toml
 src/dfs_opt/__init__.py
 src/dfs_opt/cli/main.py
 src/dfs_opt/cli/training.py
+src/dfs_opt/config/gpp_bins.py
 src/dfs_opt/config/load.py
 src/dfs_opt/config/settings.py
 src/dfs_opt/distributions/__init__.py
@@ -21,8 +22,12 @@ src/dfs_opt/parsing/dk_standings.py
 src/dfs_opt/parsing/names.py
 src/dfs_opt/parsing/sabersim.py
 src/dfs_opt/pipelines/training.py
+src/dfs_opt/resources/__init__.py
+src/dfs_opt/resources/gpp_contests.yaml
+src/dfs_opt/utils/__init__.py
 src/dfs_opt/utils/git.py
 src/dfs_opt/utils/hashing.py
+src/dfs_opt/utils/logging.py
 src/showdown_optimizer_v2.egg-info/PKG-INFO
 src/showdown_optimizer_v2.egg-info/SOURCES.txt
 src/showdown_optimizer_v2.egg-info/dependency_links.txt
