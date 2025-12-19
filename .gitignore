@@ -1,4 +1,5 @@
 venv/
 data/
+artifacts/
 .env
 *__pycache__/
