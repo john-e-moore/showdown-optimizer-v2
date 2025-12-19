@@ -53,6 +53,7 @@ class TrainingConfig:
     artifacts_root: Path = Path("artifacts")
     seed: int = 1337
     persist_step_outputs: bool = False
+    log_level: str = "INFO"
 
     # optional filter: run only a single segment bucket
     gpp_category: Optional[str] = None

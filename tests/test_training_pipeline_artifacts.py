@@ -64,6 +64,14 @@ def test_training_pipeline_writes_required_artifacts(tmp_path: Path) -> None:
     assert (run_dir / "run_manifest.json").exists()
     assert (run_dir / "entries_enriched.parquet").exists()
     assert (run_dir / "target_distributions" / f"{expected_cat}.json").exists()
+    assert (run_dir / "logs" / "run.log").exists()
+
+    log_text = (run_dir / "logs" / "run.log").read_text(encoding="utf-8")
+    # run_id appears as the last directory segment
+    assert run_dir.name in log_text
+    assert "00_ingest" in log_text
+    assert "05_fit_target_distributions" in log_text
+    assert "Run finished" in log_text
 
     # step folders + mandatory sidecars
     steps = run_dir / "steps"

@@ -23,6 +23,7 @@ def run(
     persist_step_outputs: bool = typer.Option(
         False, help="If set, write step outputs as parquet alongside preview/schema/manifests"
     ),
+    log_level: str = typer.Option("INFO", help="Python logging level (INFO, DEBUG, WARNING, ...)"),
     gpp_category: Optional[str] = typer.Option(
         None, help="If set, run only this segment bucket (e.g. nba-showdown-mme-1k-10k)"
     ),
@@ -33,6 +34,7 @@ def run(
             artifacts_root=artifacts_root,
             seed=seed,
             persist_step_outputs=persist_step_outputs,
+            log_level=log_level,
             gpp_category=gpp_category,
         )
     else:
@@ -43,6 +45,7 @@ def run(
             artifacts_root=artifacts_root,
             seed=seed,
             persist_step_outputs=persist_step_outputs,
+            log_level=log_level,
             gpp_category=gpp_category,
         )
     run_training_pipeline(cfg)

@@ -43,6 +43,7 @@ def training_config_from_dict(data: Dict[str, Any]) -> TrainingConfig:
         artifacts_root=Path(data.get("artifacts_root", "artifacts")),
         seed=int(data.get("seed", 1337)),
         persist_step_outputs=bool(data.get("persist_step_outputs", False)),
+        log_level=str(data.get("log_level", "INFO")),
         gpp_category=data.get("gpp_category"),
         segment_definitions=seg_defs,
     )
@@ -55,6 +56,7 @@ def apply_cli_overrides(
     artifacts_root: Optional[Path] = None,
     seed: Optional[int] = None,
     persist_step_outputs: Optional[bool] = None,
+    log_level: Optional[str] = None,
     gpp_category: Optional[str] = None,
 ) -> TrainingConfig:
     return replace(
@@ -65,6 +67,7 @@ def apply_cli_overrides(
         persist_step_outputs=persist_step_outputs
         if persist_step_outputs is not None
         else cfg.persist_step_outputs,
+        log_level=log_level if log_level is not None else cfg.log_level,
         gpp_category=gpp_category if gpp_category is not None else cfg.gpp_category,
     )
 
