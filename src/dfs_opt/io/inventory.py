@@ -3,6 +3,7 @@ from __future__ import annotations
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
+import re
 from typing import Iterable, List, Optional, Tuple
 
 import pandas as pd
@@ -43,6 +44,9 @@ def extract_standings_zips(zips: Iterable[Path], *, out_dir: Path) -> List[Path]
             for member in zf.namelist():
                 if not member.lower().endswith(".csv"):
                     continue
+                # Avoid extracting unrelated CSVs if any exist inside the archive.
+                if "contest-standings" not in Path(member).name.lower():
+                    continue
                 target = out_dir / Path(member).name
                 zf.extract(member, path=out_dir)
                 # zipfile keeps original nested paths; normalize by copying to root if needed
@@ -75,11 +79,18 @@ def load_slate_inputs(
         # zips
         zips = [p for p in contests_dir.glob("*.zip") if p.is_file()]
         source_archives.extend(zips)
-        # Only extract zips if we didn't already find any extracted standings CSVs.
-        # Many repos keep both extracted CSVs and the original zips; extracting everything
-        # each run would be unnecessarily slow and produce massive artifacts.
-        if zips and not standings_files:
-            standings_files.extend(extract_standings_zips(zips, out_dir=extract_dir))
+        # Extract only the ZIPs whose contest IDs are not already present in extracted CSVs.
+        # This preserves the "don't extract everything" optimization while still ensuring we
+        # don't miss additional contests that exist only as ZIPs (e.g. 10k+ field contests).
+        if zips:
+            def _contest_id_from_stem(stem: str) -> str:
+                m = re.search(r"(\d{6,})", stem)
+                return m.group(1) if m else stem
+
+            existing_ids = {_contest_id_from_stem(p.stem) for p in standings_files}
+            zips_to_extract = [z for z in zips if _contest_id_from_stem(z.stem) not in existing_ids]
+            if zips_to_extract:
+                standings_files.extend(extract_standings_zips(zips_to_extract, out_dir=extract_dir))
 
     standings_files = sorted({p.resolve() for p in standings_files})
     return SlateInputs(

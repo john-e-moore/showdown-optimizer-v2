@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import random
 import time
+from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -37,6 +38,26 @@ def run_training_pipeline(config: TrainingConfig) -> Dict[str, Any]:
     run_id = new_run_id()
     writer = ArtifactWriter(artifacts_root=config.artifacts_root, pipeline="training", run_id=run_id)
     writer.init_run_dirs()
+
+    # --- agent debug logging (NDJSON) ---
+    # Writes to the provisioned log path for this Cursor debug session.
+    # Keep this tiny + safe; never log secrets/PII.
+    def _agent_log(*, hypothesis_id: str, location: str, message: str, data: Dict[str, Any]) -> None:
+        try:
+            payload = {
+                "sessionId": "debug-session",
+                "runId": str(run_id),
+                "hypothesisId": str(hypothesis_id),
+                "location": str(location),
+                "message": str(message),
+                "data": data,
+                "timestamp": int(time.time() * 1000),
+            }
+            with open("/home/john/showdown-optimizer-v2/.cursor/debug.log", "a", encoding="utf-8") as f:
+                f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+        except Exception:
+            # Never fail the pipeline due to debug logging.
+            return
 
     logger = configure_run_logger(
         logs_dir=writer.logs_dir,
@@ -172,14 +193,60 @@ def run_training_pipeline(config: TrainingConfig) -> Dict[str, Any]:
         metrics_02 = {"num_contests": 0, "invalid_lineup_rows": 0, "parse_success_rate_mean": 0.0}
         step02_inputs: List[Tuple[str, str, str]] = []
 
+        # Counters for debugging why no contests pass filter
+        _dbg_seen_files = 0
+        _dbg_kept_files = 0
+        _dbg_skipped_mismatch = 0
+        _dbg_gpp_counts: Counter[str] = Counter()
+        _dbg_sport_standings_counts: Counter[str] = Counter()
+        _dbg_sampled = 0
+        _dbg_sampled_skips = 0
+
+        # #region agent log
+        total_slates = int(len(slate_inputs))
+        total_standings = int(sum(len(s.standings_files) for s in slate_inputs))
+        for s in slate_inputs:
+            _dbg_sport_standings_counts[str(s.sport).lower()] += int(len(s.standings_files))
+        _agent_log(
+            hypothesis_id="H1",
+            location="src/dfs_opt/pipelines/training.py:02_parse_contest_entries:init",
+            message="Step02 starting; summarize standings discovery and filter config",
+            data={
+                "config_gpp_category": config.gpp_category,
+                "num_slates": total_slates,
+                "total_standings_files": total_standings,
+                "standings_files_by_sport": dict(_dbg_sport_standings_counts),
+            },
+        )
+        # #endregion
+
         for s in slate_inputs:
             for standings_path in s.standings_files:
+                _dbg_seen_files += 1
                 # quick size bin inference from file (use row count, fallback to 0)
                 try:
                     contest_size = int(len(pd.read_csv(standings_path)))
                 except Exception:
                     contest_size = 0
                 size_bin = _size_bin_label(contest_size, config)
+
+                if _dbg_sampled < 8:
+                    # #region agent log
+                    _agent_log(
+                        hypothesis_id="H3",
+                        location="src/dfs_opt/pipelines/training.py:02_parse_contest_entries:pre_parse",
+                        message="About to parse standings CSV; record inferred size bin inputs",
+                        data={
+                            "sport": str(s.sport).lower(),
+                            "slate_id": str(s.slate_id),
+                            "path": str(standings_path),
+                            "contest_size_len_csv": int(contest_size),
+                            "size_bin": str(size_bin),
+                            "filter_gpp_category": config.gpp_category,
+                        },
+                    )
+                    # #endregion
+                    _dbg_sampled += 1
 
                 df_e, m = parse_dk_showdown_entries(
                     standings_path, sport=s.sport, slate_id=s.slate_id, size_bin=size_bin
@@ -191,10 +258,47 @@ def run_training_pipeline(config: TrainingConfig) -> Dict[str, Any]:
                     context=f"DK standings parse ({standings_path})",
                 )
 
+                _dbg_gpp_counts[str(m.get("gpp_category"))] += 1
+                if _dbg_sampled < 8:
+                    # #region agent log
+                    _agent_log(
+                        hypothesis_id="H2",
+                        location="src/dfs_opt/pipelines/training.py:02_parse_contest_entries:post_parse",
+                        message="Parsed standings; record inferred gpp_category and key metrics",
+                        data={
+                            "sport": str(s.sport).lower(),
+                            "slate_id": str(s.slate_id),
+                            "path": str(standings_path),
+                            "parsed_gpp_category": str(m.get("gpp_category")),
+                            "parsed_contest_size": int(m.get("contest_size") or 0),
+                            "parsed_max_entries_per_user": m.get("max_entries_per_user"),
+                            "parse_success_rate": float(m.get("parse_success_rate") or 0.0),
+                            "invalid_lineup_rows": int(m.get("invalid_lineup_rows") or 0),
+                            "filter_gpp_category": config.gpp_category,
+                        },
+                    )
+                    # #endregion
+
                 if config.gpp_category and m["gpp_category"] != config.gpp_category:
+                    _dbg_skipped_mismatch += 1
+                    if _dbg_sampled_skips < 8:
+                        # #region agent log
+                        _agent_log(
+                            hypothesis_id="H1",
+                            location="src/dfs_opt/pipelines/training.py:02_parse_contest_entries:filter",
+                            message="Skipping contest due to gpp_category mismatch",
+                            data={
+                                "path": str(standings_path),
+                                "parsed_gpp_category": str(m.get("gpp_category")),
+                                "filter_gpp_category": config.gpp_category,
+                            },
+                        )
+                        # #endregion
+                        _dbg_sampled_skips += 1
                     continue
 
                 parsed_entries_tables.append(df_e)
+                _dbg_kept_files += 1
                 metrics_02["num_contests"] += 1
                 metrics_02["invalid_lineup_rows"] += int(m["invalid_lineup_rows"])
                 metrics_02["parse_success_rate_mean"] += float(m["parse_success_rate"])
@@ -213,6 +317,23 @@ def run_training_pipeline(config: TrainingConfig) -> Dict[str, Any]:
         parsed_entries = _concat_or_empty(parsed_entries_tables)
         if metrics_02["num_contests"] > 0:
             metrics_02["parse_success_rate_mean"] /= metrics_02["num_contests"]
+
+        # #region agent log
+        _agent_log(
+            hypothesis_id="H1",
+            location="src/dfs_opt/pipelines/training.py:02_parse_contest_entries:summary",
+            message="Step02 summary; how many contests were seen vs kept and which categories were produced",
+            data={
+                "seen_files": int(_dbg_seen_files),
+                "kept_files": int(_dbg_kept_files),
+                "skipped_mismatch": int(_dbg_skipped_mismatch),
+                "distinct_parsed_gpp_categories": int(len(_dbg_gpp_counts)),
+                "parsed_gpp_category_counts_top": dict(_dbg_gpp_counts.most_common(12)),
+                "parsed_entries_shape": [int(parsed_entries.shape[0]), int(parsed_entries.shape[1])],
+                "parsed_entries_columns": [str(c) for c in list(parsed_entries.columns)[:50]],
+            },
+        )
+        # #endregion
 
         _step02 = writer.write_step(
             step_idx=2,
@@ -244,6 +365,19 @@ def run_training_pipeline(config: TrainingConfig) -> Dict[str, Any]:
 
         enriched_tables = []
         unmatched_total = 0
+
+        # #region agent log
+        _agent_log(
+            hypothesis_id="H4",
+            location="src/dfs_opt/pipelines/training.py:03_join_and_enrich:pre_groupby",
+            message="About to group parsed_entries by slate_id; record schema to explain KeyError",
+            data={
+                "parsed_entries_shape": [int(parsed_entries.shape[0]), int(parsed_entries.shape[1])],
+                "parsed_entries_columns": [str(c) for c in list(parsed_entries.columns)[:50]],
+                "has_slate_id": bool("slate_id" in parsed_entries.columns),
+            },
+        )
+        # #endregion
 
         for slate_id, grp in parsed_entries.groupby("slate_id", dropna=False):
             ply = players_all[players_all["slate_id"] == slate_id].copy()
