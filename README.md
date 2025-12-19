@@ -27,6 +27,21 @@ Example (use your local data under `data/`):
 dfs-opt training run --data-root data/historical/raw --artifacts-root artifacts
 ```
 
+### GPP category bins (static)
+
+Pipeline A buckets contests into **static GPP category bins** based on:
+- sport (currently: NBA, NFL)
+- contest type (currently: showdown)
+- contest size bin (`0-1k`, `1k-10k`, `10k+`)
+- entry type:
+  - `single-entry`: max entries per user is 1–5
+  - `mme`: max entries per user is >5 (or unknown)
+
+The set of allowed bins is stored in:
+- `src/dfs_opt/resources/gpp_contests.yaml`
+
+If Pipeline A infers a bin that is not in this file, it will **fail fast** (to keep categories truly static).
+
 Filter to a single segment bucket:
 
 ```bash

@@ -3,17 +3,18 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from dfs_opt.config.settings import TrainingConfig
 from dfs_opt.pipelines.training import run_training_pipeline
 
 
-def _write_minimal_showdown_fixture(data_root: Path) -> str:
-    slate_dir = data_root / "dk-results" / "showdown" / "nba" / "slate1"
+def _write_minimal_showdown_fixture(data_root: Path, *, sport: str = "nba") -> str:
+    slate_dir = data_root / "dk-results" / "showdown" / sport / "slate1"
     slate_dir.mkdir(parents=True, exist_ok=True)
 
     # projections
-    proj_path = slate_dir / "NBA_slate1.csv"
+    proj_path = slate_dir / f"{sport.upper()}_slate1.csv"
     pd.DataFrame(
         [
             {"Name": "A", "Team": "AAA", "Salary": 10000, "SS Proj": 20.0},
@@ -49,7 +50,7 @@ def _write_minimal_showdown_fixture(data_root: Path) -> str:
     ).to_csv(standings_path, index=False)
 
     # expected gpp category: nba-showdown-mme-0-1k (size=2, max entries=150)
-    return "nba-showdown-mme-0-1k"
+    return f"{sport}-showdown-mme-0-1k"
 
 
 def test_training_pipeline_writes_required_artifacts(tmp_path: Path) -> None:
@@ -104,5 +105,20 @@ def test_training_pipeline_gpp_category_filter(tmp_path: Path) -> None:
     res = run_training_pipeline(cfg)
     run_dir = Path(res["artifacts_dir"])
     assert (run_dir / "target_distributions" / f"{expected_cat}.json").exists()
+
+
+def test_training_pipeline_fails_fast_on_unknown_gpp_category(tmp_path: Path) -> None:
+    data_root = tmp_path / "data_root"
+    _ = _write_minimal_showdown_fixture(data_root, sport="nhl")
+
+    artifacts_root = tmp_path / "artifacts"
+    cfg = TrainingConfig(
+        data_root=data_root,
+        artifacts_root=artifacts_root,
+        persist_step_outputs=False,
+        gpp_category=None,
+    )
+    with pytest.raises(ValueError, match=r"Unknown gpp_category"):
+        run_training_pipeline(cfg)
 
 

@@ -5,6 +5,7 @@ from typing import Optional
 
 import typer
 
+from dfs_opt.config.gpp_bins import load_gpp_bins_registry, validate_gpp_category
 from dfs_opt.config.load import apply_cli_overrides, load_training_config
 from dfs_opt.config.settings import TrainingConfig
 from dfs_opt.pipelines.training import run_training_pipeline
@@ -28,6 +29,13 @@ def run(
         None, help="If set, run only this segment bucket (e.g. nba-showdown-mme-1k-10k)"
     ),
 ) -> None:
+    if gpp_category:
+        reg = load_gpp_bins_registry()
+        try:
+            validate_gpp_category(gpp_category, allowed=reg.allowed_keys, context="--gpp-category")
+        except ValueError as e:
+            raise typer.BadParameter(str(e)) from e
+
     if config is None:
         cfg = TrainingConfig(
             data_root=data_root,

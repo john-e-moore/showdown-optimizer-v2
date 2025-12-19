@@ -139,7 +139,7 @@ def parse_dk_showdown_entries(
     contest_size = int(df["entry_id"].nunique())
     max_entries_observed = df["max_entries_per_user"].dropna()
     max_entries_per_user = int(max_entries_observed.max()) if len(max_entries_observed) else None
-    entry_type = "single-entry" if max_entries_per_user == 1 else "mme"
+    entry_type = "single-entry" if (max_entries_per_user is not None and 1 <= max_entries_per_user <= 5) else "mme"
 
     segment = ContestSegment(sport=sport, slate_id=slate_id, entry_type=entry_type, size_bin=size_bin)
     df["gpp_category"] = segment.gpp_category

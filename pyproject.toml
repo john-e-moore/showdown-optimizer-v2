@@ -32,6 +32,9 @@ dfs-opt = "dfs_opt.cli.main:app"
 [tool.setuptools]
 package-dir = {"" = "src"}
 
+[tool.setuptools.package-data]
+dfs_opt = ["resources/*.yaml"]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 

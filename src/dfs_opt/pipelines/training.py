@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Tuple
 import pandas as pd
 
 from dfs_opt.config.settings import TrainingConfig
+from dfs_opt.config.gpp_bins import load_gpp_bins_registry, validate_gpp_category
 from dfs_opt.distributions.fit import fit_target_distributions
 from dfs_opt.features.enrich_showdown import enrich_showdown_entries
 from dfs_opt.features.optimal import OptimalShowdownCache, add_optimal_and_gap, compute_optimal_showdown_proj, players_fingerprint
@@ -52,6 +53,15 @@ def run_training_pipeline(config: TrainingConfig) -> Dict[str, Any]:
         config.gpp_category,
         try_get_git_sha(),
     )
+
+    gpp_registry = load_gpp_bins_registry()
+    allowed_gpp_categories = gpp_registry.allowed_keys
+    if config.gpp_category:
+        validate_gpp_category(
+            config.gpp_category,
+            allowed=allowed_gpp_categories,
+            context="training config/CLI",
+        )
 
     run_inputs: List[ManifestIO] = []
     run_outputs: List[ManifestIO] = []
@@ -173,6 +183,12 @@ def run_training_pipeline(config: TrainingConfig) -> Dict[str, Any]:
 
                 df_e, m = parse_dk_showdown_entries(
                     standings_path, sport=s.sport, slate_id=s.slate_id, size_bin=size_bin
+                )
+
+                validate_gpp_category(
+                    str(m["gpp_category"]),
+                    allowed=allowed_gpp_categories,
+                    context=f"DK standings parse ({standings_path})",
                 )
 
                 if config.gpp_category and m["gpp_category"] != config.gpp_category:

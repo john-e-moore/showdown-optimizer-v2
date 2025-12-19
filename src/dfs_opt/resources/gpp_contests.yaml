@@ -1,0 +1,67 @@
+version: 1
+bins:
+  # NBA / Showdown
+  - key: nba-showdown-single-entry-0-1k
+    sport: nba
+    contest_type: showdown
+    size_bin: 0-1k
+    entry_type: single-entry
+  - key: nba-showdown-mme-0-1k
+    sport: nba
+    contest_type: showdown
+    size_bin: 0-1k
+    entry_type: mme
+  - key: nba-showdown-single-entry-1k-10k
+    sport: nba
+    contest_type: showdown
+    size_bin: 1k-10k
+    entry_type: single-entry
+  - key: nba-showdown-mme-1k-10k
+    sport: nba
+    contest_type: showdown
+    size_bin: 1k-10k
+    entry_type: mme
+  - key: nba-showdown-single-entry-10k+
+    sport: nba
+    contest_type: showdown
+    size_bin: 10k+
+    entry_type: single-entry
+  - key: nba-showdown-mme-10k+
+    sport: nba
+    contest_type: showdown
+    size_bin: 10k+
+    entry_type: mme
+
+  # NFL / Showdown
+  - key: nfl-showdown-single-entry-0-1k
+    sport: nfl
+    contest_type: showdown
+    size_bin: 0-1k
+    entry_type: single-entry
+  - key: nfl-showdown-mme-0-1k
+    sport: nfl
+    contest_type: showdown
+    size_bin: 0-1k
+    entry_type: mme
+  - key: nfl-showdown-single-entry-1k-10k
+    sport: nfl
+    contest_type: showdown
+    size_bin: 1k-10k
+    entry_type: single-entry
+  - key: nfl-showdown-mme-1k-10k
+    sport: nfl
+    contest_type: showdown
+    size_bin: 1k-10k
+    entry_type: mme
+  - key: nfl-showdown-single-entry-10k+
+    sport: nfl
+    contest_type: showdown
+    size_bin: 10k+
+    entry_type: single-entry
+  - key: nfl-showdown-mme-10k+
+    sport: nfl
+    contest_type: showdown
+    size_bin: 10k+
+    entry_type: mme
+
+
