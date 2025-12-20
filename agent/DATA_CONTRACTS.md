@@ -85,6 +85,55 @@ Each distribution file includes:
 - `counts` and/or `bin_edges`
 - validation stats (mean, p50, p90)
 
+## 5b) Lineup Universe (output of contest pipeline, optional early step)
+**Name:** `lineups.parquet` + `players.parquet` + `metadata.json`
+
+This artifact represents the full set of legal showdown lineups for a slate.
+Lineups are stored as **indices** into the corresponding `players.parquet` row order.
+
+### 5b.1 Players table (index basis)
+**Name:** `players.parquet`
+
+Minimum expected columns:
+- `name_norm` (string)
+- `team` (string)
+- `salary` (int)
+- `proj_points` (float)
+
+Additional columns may be present (e.g., `own`, `minutes`) and should be treated as optional.
+
+### 5b.2 Lineups table
+**Name:** `lineups.parquet`
+
+Columns:
+- slots (uint16 indices into `players.parquet`):
+  - `cpt`, `u1`, `u2`, `u3`, `u4`, `u5`
+- computed:
+  - `salary_used` (int32)
+  - `salary_left` (int32)
+  - `proj_points` (float32) — CPT treated as 1.5x
+  - `stack_code` (uint8):
+    - `0` = `3-3`
+    - `1` = `4-2`
+    - `2` = `5-1`
+
+Invariants:
+- No duplicates within a lineup (`cpt` not in `u1..u5`, and `u1..u5` all distinct).
+- Salary cap respected: `salary_used <= 50000` (unless config overrides salary cap).
+- NBA showdown stack legality: no `6-0` team stacks.
+
+### 5b.3 Metadata
+**Name:** `metadata.json`
+
+Minimum keys:
+- `slate_id`, `sport`, `created_at_utc`
+- `salary_cap`
+- `num_players`, `num_lineups`
+- `team_mapping` (stable mapping of team string → 0/1 used for legality checks)
+- `schema` (column → dtype)
+- `stack_code_map`
+- `timings` (kernel timing metrics)
+
 ## 6) Run manifests (required for every CLI run)
 **Name:** `run_manifest.json`
 Minimum keys:

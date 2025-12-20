@@ -62,3 +62,26 @@ class TrainingConfig:
     segment_definitions: SegmentDefinitions = field(default_factory=SegmentDefinitions)
 
 
+@dataclass(frozen=True)
+class ContestConfig:
+    """
+    Minimal Pipeline B config for lineup universe enumeration (lineup-gen slice).
+
+    This will be extended later as Pipeline B grows (candidate pool, raking, sims, etc).
+    """
+
+    projection_csv: Path
+    slate_id: str
+    sport: str = "nba"
+
+    artifacts_root: Path = Path("artifacts")
+    seed: int = 1337
+    persist_step_outputs: bool = False
+    log_level: str = "INFO"
+
+    # enumeration knobs
+    salary_cap: int = 50000
+    min_proj_points: float = 0.0
+    max_players: Optional[int] = None
+
+

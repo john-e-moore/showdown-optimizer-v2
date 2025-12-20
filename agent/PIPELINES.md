@@ -78,35 +78,43 @@ simulate outcomes, and fill entries with lineups.
 01. **parse_projections**
 - Build canonical `players_flex`.
 
-02. **build_candidate_pool**
+02. **enumerate_lineup_universe** (optional early step)
+- Enumerate all legal showdown lineups for the slate (CPT + 5 UTIL) under DK rules.
+- Outputs:
+  - `players.parquet` (the indexed player table used for enumeration)
+  - `lineups.parquet` (the full lineup universe, stored as slot indices)
+  - `metadata.json` (schema, team mapping, counts, timings)
+- Metrics: num_players, num_lineups, stack distribution, kernel runtimes.
+
+03. **build_candidate_pool**
 - Generate 50k–500k plausible lineups using optimizer “brains” (temperature/noise + constraints).
 - Artifacts:
   - summary stats (salary_left histogram, stack pattern counts, captain archetype counts)
   - small sample of lineups (preview)
 
-03. **base_weighting**
+04. **base_weighting**
 - Assign base weight `q(L)` (e.g., exp(tau*proj - lambda*salary_left - penalties)).
 - Metrics: weight concentration (entropy), top-100 mass.
 
-04. **reweight_to_targets**
+05. **reweight_to_targets**
 - Rake weights to match:
   - CPT/FLEX ownership targets
   - salary_left bins, stack patterns, archetypes, gap bins (if provided)
 - Metrics: constraint error per target, number of iterations, convergence status.
 
-05. **sample_field**
+06. **sample_field**
 - Sample N entries from reweighted distribution **with replacement** (duplicates allowed).
 - Metrics: implied duplication histogram.
 
-06. **simulate_and_score**
+07. **simulate_and_score**
 - Run correlated simulations → ROI/EV/top1% rates with payout splitting.
 - Metrics: runtime, sim count, stability diagnostics.
 
-07. **select_and_diversify_for_user_entries**
+08. **select_and_diversify_for_user_entries**
 - Select lineups for user DKEntries with diversification constraints (exposure caps, etc.).
 - Metrics: exposure summary table.
 
-08. **write_outputs**
+09. **write_outputs**
 - Write `DKEntries_filled.csv` plus run manifest.
 
 ### Outputs
