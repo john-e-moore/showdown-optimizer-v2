@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Sequence, Tuple
+from pathlib import Path
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
+
+from dfs_opt.features.correlation import avg_corr_for_lineup, load_corr_matrix_csv
 
 
 @dataclass(frozen=True)
@@ -25,6 +28,8 @@ def enrich_showdown_entries(
     players_flex: pd.DataFrame,
     *,
     captain_tiers: Sequence[Tuple[int, str]],
+    corr_matrix_csv: Optional[Path] = None,
+    own_log_eps: float = 1e-6,
 ) -> Tuple[pd.DataFrame, Dict]:
     """
     Join parsed DK entries to Sabersim FLEX projections and compute lineup-level features.
@@ -36,7 +41,7 @@ def enrich_showdown_entries(
       - lineup_hash
 
     Required input columns on players_flex:
-      - name_norm, team, salary, proj_points
+      - name_norm, team, salary, proj_points, own
 
     Returns:
       (enriched_df, metrics)
@@ -62,7 +67,7 @@ def enrich_showdown_entries(
     if missing_e:
         raise ValueError(f"entries missing required columns: {missing_e}")
 
-    required_players = ["name_norm", "team", "salary", "proj_points"]
+    required_players = ["name_norm", "team", "salary", "proj_points", "own"]
     missing_p = [c for c in required_players if c not in players_flex.columns]
     if missing_p:
         raise ValueError(f"players_flex missing required columns: {missing_p}")
@@ -78,8 +83,13 @@ def enrich_showdown_entries(
     salary_rank_map = dict(zip(active["name_norm"], active["salary_rank"]))
 
     # join player features for each slot
-    p_small = p[["name_norm", "team", "salary", "proj_points"]].rename(
-        columns={"team": "slot_team", "salary": "slot_salary", "proj_points": "slot_proj"}
+    p_small = p[["name_norm", "team", "salary", "proj_points", "own"]].rename(
+        columns={
+            "team": "slot_team",
+            "salary": "slot_salary",
+            "proj_points": "slot_proj",
+            "own": "slot_own",
+        }
     )
 
     def join_slot(slot_prefix: str) -> None:
@@ -96,13 +106,18 @@ def enrich_showdown_entries(
         df[f"{slot_prefix}_team"] = joined["slot_team"].to_numpy()
         df[f"{slot_prefix}_salary"] = joined["slot_salary"].to_numpy()
         df[f"{slot_prefix}_proj"] = joined["slot_proj"].to_numpy()
+        df[f"{slot_prefix}_own"] = joined["slot_own"].to_numpy()
 
     join_slot("cpt")
     for i in range(1, 6):
         join_slot(f"util{i}")
 
     # identify missing joins
-    join_cols = ["cpt_salary"] + [f"util{i}_salary" for i in range(1, 6)]
+    join_cols = (
+        ["cpt_salary", "cpt_own"]
+        + [f"util{i}_salary" for i in range(1, 6)]
+        + [f"util{i}_own" for i in range(1, 6)]
+    )
     missing_mask = df[join_cols].isna().any(axis=1)
     df["missing_players"] = ""
     if missing_mask.any():
@@ -123,19 +138,65 @@ def enrich_showdown_entries(
     # drop rows we can't compute features for (but keep counts in metrics)
     df_ok = df.loc[~missing_mask].copy()
 
+    # contest size (entrants) within the passed entries slice
+    df_ok["contest_size"] = df_ok.groupby("contest_id")["lineup_hash"].transform("count").astype(int)
+
     # dup_count within contest
     df_ok["dup_count"] = (
         df_ok.groupby(["contest_id", "lineup_hash"])["lineup_hash"].transform("count").astype(int)
     )
+    df_ok["pct_contest_lineups"] = (df_ok["dup_count"] / df_ok["contest_size"]).astype(float)
 
     cpt_salary = df_ok["cpt_salary"].astype(float).to_numpy()
     util_salary = np.vstack([df_ok[f"util{i}_salary"].astype(float).to_numpy() for i in range(1, 6)]).T
     cpt_proj = df_ok["cpt_proj"].astype(float).to_numpy()
     util_proj = np.vstack([df_ok[f"util{i}_proj"].astype(float).to_numpy() for i in range(1, 6)]).T
+    cpt_own = df_ok["cpt_own"].astype(float).to_numpy()
+    util_own = np.vstack([df_ok[f"util{i}_own"].astype(float).to_numpy() for i in range(1, 6)]).T
 
     df_ok["salary_used"] = (1.5 * cpt_salary + util_salary.sum(axis=1)).round(0).astype(int)
     df_ok["salary_left"] = 50000 - df_ok["salary_used"]
     df_ok["proj_points"] = 1.5 * cpt_proj + util_proj.sum(axis=1)
+
+    if (df_ok["salary_left"] < 0).any():
+        bad = int((df_ok["salary_left"] < 0).sum())
+        raise ValueError(f"salary_left negative for {bad} rows; expected <= cap")
+
+    # salary_left bins (half-open, left-inclusive)
+    salary_bins = [0, 200, 500, 1000, 2000, float("inf")]
+    salary_labels = ["0_200", "200_500", "500_1000", "1000_2000", "2000_plus"]
+    df_ok["salary_left_bin"] = pd.cut(
+        df_ok["salary_left"].astype(float),
+        bins=salary_bins,
+        labels=salary_labels,
+        right=False,
+        include_lowest=True,
+    ).astype("object")
+
+    # ownership features: treat CPT same as UTIL (no 1.5 multiplier)
+    own_mat = np.column_stack([cpt_own, util_own])
+    own_clamped = np.clip(own_mat.astype(float), own_log_eps, 1.0)
+    own_log = np.log(own_clamped)
+    df_ok["own_score_logprod"] = own_log.sum(axis=1)
+    df_ok["own_max_log"] = own_log.max(axis=1)
+    df_ok["own_min_log"] = own_log.min(axis=1)
+
+    # correlation feature
+    if corr_matrix_csv is None:
+        raise ValueError("corr_matrix_csv is required to compute avg_corr")
+    lookup = load_corr_matrix_csv(Path(corr_matrix_csv))
+    avg_corr_vals: List[float] = []
+    for r in df_ok.itertuples(index=False):
+        names = [
+            getattr(r, "cpt_name_norm"),
+            getattr(r, "util1_name_norm"),
+            getattr(r, "util2_name_norm"),
+            getattr(r, "util3_name_norm"),
+            getattr(r, "util4_name_norm"),
+            getattr(r, "util5_name_norm"),
+        ]
+        avg_corr_vals.append(avg_corr_for_lineup(names, lookup))
+    df_ok["avg_corr"] = avg_corr_vals
 
     # teams and stack patterns
     def stack_info(row: pd.Series) -> Tuple[str | None, str | None]:

@@ -18,6 +18,7 @@ class SabersimColumns:
     pos_col: Optional[str] = "Pos"
     salary_col: str = "Salary"
     proj_col: str = "SS Proj"
+    own_col: str = "My Own"
     minutes_col: Optional[str] = "Min"
 
 
@@ -33,6 +34,8 @@ def parse_sabersim_showdown_csv(path: Path, *, cols: SabersimColumns = SabersimC
     missing = [c for c in required if c not in df.columns]
     if missing:
         raise ValueError(f"{path}: missing required columns {missing}; got {list(df.columns)}")
+    if cols.own_col not in df.columns:
+        raise ValueError(f"{path}: missing required ownership column '{cols.own_col}'; got {list(df.columns)}")
 
     out = pd.DataFrame()
     out["player_name"] = df[cols.name_col].astype(str)
@@ -51,6 +54,9 @@ def parse_sabersim_showdown_csv(path: Path, *, cols: SabersimColumns = SabersimC
 
     out["salary"] = pd.to_numeric(df[cols.salary_col], errors="coerce").astype("Int64")
     out["proj_points"] = pd.to_numeric(df[cols.proj_col], errors="coerce")
+    # Sabersim exports ownership as percent; canonicalize to probability in [0,1].
+    own_raw = pd.to_numeric(df[cols.own_col], errors="coerce")
+    out["own"] = (own_raw / 100.0).clip(lower=0.0, upper=1.0)
 
     if cols.minutes_col and cols.minutes_col in df.columns:
         out["minutes"] = pd.to_numeric(df[cols.minutes_col], errors="coerce")
@@ -58,7 +64,7 @@ def parse_sabersim_showdown_csv(path: Path, *, cols: SabersimColumns = SabersimC
         out["minutes"] = pd.NA
 
     before = len(out)
-    out = out.dropna(subset=["name_norm", "salary", "proj_points"]).copy()
+    out = out.dropna(subset=["name_norm", "salary", "proj_points", "own"]).copy()
 
     # choose min salary row per player as FLEX
     out = out.sort_values(["name_norm", "salary"], ascending=[True, True])

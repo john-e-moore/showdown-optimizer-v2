@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import random
 import time
 from collections import Counter
@@ -366,6 +367,8 @@ def run_training_pipeline(config: TrainingConfig) -> Dict[str, Any]:
         enriched_tables = []
         unmatched_total = 0
 
+        corr_by_slate: Dict[str, Path | None] = {str(s.slate_id): s.corr_matrix_csv for s in slate_inputs}
+
         # #region agent log
         _agent_log(
             hypothesis_id="H4",
@@ -383,6 +386,9 @@ def run_training_pipeline(config: TrainingConfig) -> Dict[str, Any]:
             ply = players_all[players_all["slate_id"] == slate_id].copy()
             if len(ply) == 0:
                 continue
+            corr_path = corr_by_slate.get(str(slate_id))
+            if corr_path is None:
+                raise ValueError(f"Missing correlation matrix for slate_id={slate_id}")
             enriched, m = enrich_showdown_entries(
                 grp,
                 ply.rename(
@@ -394,6 +400,7 @@ def run_training_pipeline(config: TrainingConfig) -> Dict[str, Any]:
                     }
                 ),
                 captain_tiers=config.segment_definitions.captain_tiers,
+                corr_matrix_csv=corr_path,
             )
             unmatched_total += int(m["unmatched_player_names"])
             enriched_tables.append(enriched)
@@ -443,6 +450,9 @@ def run_training_pipeline(config: TrainingConfig) -> Dict[str, Any]:
                 cache.set(key, res)
             else:
                 res = cached
+            opt = float(res.optimal_proj_points)
+            if (not math.isfinite(opt)) or (not opt > 0.0):
+                raise ValueError(f"Invalid optimal_proj_points for slate_id={slate_id}: {res.optimal_proj_points}")
             per_slate_metrics[str(slate_id)] = {
                 "optimal_proj_points": res.optimal_proj_points,
                 "compute_time_s": res.compute_time_s,
@@ -455,7 +465,23 @@ def run_training_pipeline(config: TrainingConfig) -> Dict[str, Any]:
                 float(res.compute_time_s),
                 int(res.num_players_considered),
             )
-            enriched_with_gap_tables.append(add_optimal_and_gap(grp, optimal_proj_points=res.optimal_proj_points))
+            tmp = add_optimal_and_gap(grp, optimal_proj_points=res.optimal_proj_points)
+            # pct gap to optimal + bins
+            if (tmp["proj_gap_to_optimal"].astype(float) < -1e-6).any():
+                bad = float(tmp["proj_gap_to_optimal"].astype(float).min())
+                raise ValueError(f"proj_gap_to_optimal < 0 for slate_id={slate_id} (min={bad})")
+            pct_gap = (tmp["proj_gap_to_optimal"].astype(float) / float(res.optimal_proj_points)).clip(lower=0.0)
+            tmp["pct_proj_gap_to_optimal"] = pct_gap
+            gap_bins = [0.0, 0.01, 0.02, 0.04, 0.07, float("inf")]
+            gap_labels = ["0_0.01", "0.01_0.02", "0.02_0.04", "0.04_0.07", "0.07_plus"]
+            tmp["pct_proj_gap_to_optimal_bin"] = pd.cut(
+                tmp["pct_proj_gap_to_optimal"].astype(float),
+                bins=gap_bins,
+                labels=gap_labels,
+                right=False,
+                include_lowest=True,
+            ).astype("object")
+            enriched_with_gap_tables.append(tmp)
 
         enriched_with_gap = _concat_or_empty(enriched_with_gap_tables)
         _step04 = writer.write_step(
