@@ -53,14 +53,22 @@ Required columns:
 - computed
   - `salary_used` (int)
   - `salary_left` (int)
+  - `salary_left_bin` (string; bins: `0_200`, `200_500`, `500_1000`, `1000_2000`, `2000_plus`)
   - `proj_points` (float) — computed from projections
   - `optimal_proj_points` (float)
   - `proj_gap_to_optimal` (float)
+  - `pct_proj_gap_to_optimal` (float)
+  - `pct_proj_gap_to_optimal_bin` (string; bins: `0_0.01`, `0.01_0.02`, `0.02_0.04`, `0.04_0.07`, `0.07_plus`)
   - `stack_pattern` (string like `4-2`)
   - `heavy_team` (string)
   - `cpt_team` (string)
   - `cpt_archetype` (string: `stud_1_2`, `stud_3_5`, `mid_6_10`, `value_11_plus`)
   - `dup_count` (int) — count of identical `lineup_hash` in contest
+  - `pct_contest_lineups` (float) — `dup_count / contest_size`
+  - `own_score_logprod` (float) — sum of `log(own)` across all 6 rostered players (CPT treated same as UTIL)
+  - `own_max_log` (float) — max `log(own)` across the 6 players
+  - `own_min_log` (float) — min `log(own)` across the 6 players
+  - `avg_corr` (float) — average pairwise Pearson correlation across the 6 players (denominator 15)
 
 ## 5) Target Distributions (output of training pipeline)
 Store as versioned JSON files:

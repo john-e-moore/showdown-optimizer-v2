@@ -12,9 +12,9 @@ def test_parse_sabersim_keeps_min_salary_row(tmp_path: Path) -> None:
     p = tmp_path / "proj.csv"
     df = pd.DataFrame(
         [
-            {"Name": "John Doe", "Team": "AAA", "Salary": 12000, "SS Proj": 30.0},
-            {"Name": "John Doe", "Team": "AAA", "Salary": 8000, "SS Proj": 30.0},
-            {"Name": "Jane Roe", "Team": "BBB", "Salary": 9000, "SS Proj": 28.0},
+            {"Name": "John Doe", "Team": "AAA", "Salary": 12000, "SS Proj": 30.0, "My Own": 10.0},
+            {"Name": "John Doe", "Team": "AAA", "Salary": 8000, "SS Proj": 30.0, "My Own": 12.0},
+            {"Name": "Jane Roe", "Team": "BBB", "Salary": 9000, "SS Proj": 28.0, "My Own": 5.0},
         ]
     )
     df.to_csv(p, index=False)
@@ -23,5 +23,6 @@ def test_parse_sabersim_keeps_min_salary_row(tmp_path: Path) -> None:
     assert metrics["num_players"] == 2
     john = out[out["name_norm"] == "john doe"].iloc[0]
     assert int(john["salary"]) == 8000
+    assert float(john["own"]) == 0.12
 
 

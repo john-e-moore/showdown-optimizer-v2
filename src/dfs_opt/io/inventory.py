@@ -121,6 +121,17 @@ def build_input_inventory(inputs: List[SlateInputs]) -> pd.DataFrame:
                 "size_bytes": s.projection_csv.stat().st_size,
             }
         )
+        if s.corr_matrix_csv is not None:
+            rows.append(
+                {
+                    "kind": "corr_matrix",
+                    "sport": s.sport,
+                    "slate_id": s.slate_id,
+                    "path": str(s.corr_matrix_csv),
+                    "sha256": sha256_file(str(s.corr_matrix_csv)),
+                    "size_bytes": s.corr_matrix_csv.stat().st_size,
+                }
+            )
         for p in s.standings_files:
             rows.append(
                 {
