@@ -16,6 +16,7 @@ class SlateInputs:
     sport: str
     slate_id: str
     projection_csv: Path
+    corr_matrix_csv: Optional[Path]
     standings_files: List[Path]  # extracted CSVs
     source_archives: List[Path]  # zip files (optional)
 
@@ -70,6 +71,10 @@ def load_slate_inputs(
         raise FileNotFoundError(f"No projection CSV found in {slate_dir}")
     projection_csv = sorted(proj_candidates)[0]
 
+    # correlation matrix: optional per-slate file
+    corr_candidates = sorted([p for p in slate_dir.glob("*_corr_matrix.csv") if p.is_file()])
+    corr_matrix_csv = corr_candidates[0] if corr_candidates else None
+
     contests_dir = slate_dir / "contests"
     standings_files: List[Path] = []
     source_archives: List[Path] = []
@@ -97,6 +102,7 @@ def load_slate_inputs(
         sport=sport,
         slate_id=slate_id,
         projection_csv=projection_csv,
+        corr_matrix_csv=corr_matrix_csv.resolve() if corr_matrix_csv else None,
         standings_files=standings_files,
         source_archives=source_archives,
     )
