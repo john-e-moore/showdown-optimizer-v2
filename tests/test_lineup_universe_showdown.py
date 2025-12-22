@@ -87,9 +87,18 @@ def test_contest_lineup_gen_writes_required_artifacts(tmp_path: Path) -> None:
         ]
     ).to_csv(proj_path, index=False)
 
+    # Simple correlation matrix fixture (identity -> avg_corr = 0 off-diagonal).
+    corr_path = tmp_path / "_corr_matrix.csv"
+    names = ["A", "B", "C", "D", "E", "F", "G"]
+    corr_df = {"Column1": names}
+    for n in names:
+        corr_df[n] = [1.0 if m == n else 0.0 for m in names]
+    pd.DataFrame(corr_df).to_csv(corr_path, index=False)
+
     artifacts_root = tmp_path / "artifacts"
     cfg = ContestConfig(
         projection_csv=proj_path,
+        corr_matrix_csv=corr_path,
         slate_id="slate1",
         sport="nba",
         artifacts_root=artifacts_root,
@@ -104,6 +113,7 @@ def test_contest_lineup_gen_writes_required_artifacts(tmp_path: Path) -> None:
     assert (run_dir / "logs" / "run.log").exists()
     assert (run_dir / "players.parquet").exists()
     assert (run_dir / "lineups.parquet").exists()
+    assert (run_dir / "lineups_enriched.parquet").exists()
     assert (run_dir / "metadata.json").exists()
 
     steps = run_dir / "steps"
@@ -111,6 +121,7 @@ def test_contest_lineup_gen_writes_required_artifacts(tmp_path: Path) -> None:
         "00_ingest",
         "01_parse_projections",
         "02_enumerate_lineup_universe",
+        "03_enrich_lineup_universe_features",
     ]:
         step_dir = steps / step_dir_name
         assert step_dir.exists(), f"missing step folder {step_dir_name}"

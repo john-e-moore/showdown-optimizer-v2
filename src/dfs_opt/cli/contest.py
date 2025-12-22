@@ -18,6 +18,7 @@ def lineup_gen(
         None, help="Optional YAML config file; CLI options override values from config"
     ),
     projection_csv: Path = typer.Option(..., help="Sabersim projections CSV (raw)"),
+    corr_matrix_csv: Path = typer.Option(..., help="Sabersim correlation matrix CSV for the slate"),
     slate_id: str = typer.Option(..., help="Slate identifier (recorded in manifests)"),
     sport: str = typer.Option("nba", help="Sport label (recorded in manifests)"),
     artifacts_root: Path = typer.Option(Path("artifacts/lineup-gen"), help="Where to write run artifacts"),
@@ -33,6 +34,7 @@ def lineup_gen(
     if config is None:
         cfg = ContestConfig(
             projection_csv=projection_csv,
+            corr_matrix_csv=corr_matrix_csv,
             slate_id=slate_id,
             sport=sport,
             artifacts_root=artifacts_root,
@@ -48,6 +50,7 @@ def lineup_gen(
         cfg = apply_contest_cli_overrides(
             cfg,
             projection_csv=projection_csv,
+            corr_matrix_csv=corr_matrix_csv,
             slate_id=slate_id,
             sport=sport,
             artifacts_root=artifacts_root,

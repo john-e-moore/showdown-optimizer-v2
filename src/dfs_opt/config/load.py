@@ -80,6 +80,7 @@ def apply_cli_overrides(
 def contest_config_from_dict(data: Dict[str, Any]) -> ContestConfig:
     return ContestConfig(
         projection_csv=Path(data["projection_csv"]),
+        corr_matrix_csv=Path(data["corr_matrix_csv"]),
         slate_id=str(data["slate_id"]),
         sport=str(data.get("sport", "nba")),
         artifacts_root=Path(data.get("artifacts_root", "artifacts")),
@@ -89,6 +90,8 @@ def contest_config_from_dict(data: Dict[str, Any]) -> ContestConfig:
         salary_cap=int(data.get("salary_cap", 50000)),
         min_proj_points=float(data.get("min_proj_points", 0.0)),
         max_players=(None if data.get("max_players") is None else int(data.get("max_players"))),
+        captain_tiers=[(int(t[0]), str(t[1])) for t in (data.get("captain_tiers") or SegmentDefinitions().captain_tiers)],
+        own_log_eps=float(data.get("own_log_eps", 1e-6)),
     )
 
 
@@ -96,6 +99,7 @@ def apply_contest_cli_overrides(
     cfg: ContestConfig,
     *,
     projection_csv: Optional[Path] = None,
+    corr_matrix_csv: Optional[Path] = None,
     slate_id: Optional[str] = None,
     sport: Optional[str] = None,
     artifacts_root: Optional[Path] = None,
@@ -109,6 +113,7 @@ def apply_contest_cli_overrides(
     return replace(
         cfg,
         projection_csv=projection_csv if projection_csv is not None else cfg.projection_csv,
+        corr_matrix_csv=corr_matrix_csv if corr_matrix_csv is not None else cfg.corr_matrix_csv,
         slate_id=slate_id if slate_id is not None else cfg.slate_id,
         sport=sport if sport is not None else cfg.sport,
         artifacts_root=artifacts_root if artifacts_root is not None else cfg.artifacts_root,

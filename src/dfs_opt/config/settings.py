@@ -71,6 +71,8 @@ class ContestConfig:
     """
 
     projection_csv: Path
+    # Required for lineup-universe feature enrichment (avg_corr).
+    corr_matrix_csv: Path
     slate_id: str
     sport: str = "nba"
 
@@ -83,5 +85,9 @@ class ContestConfig:
     salary_cap: int = 50000
     min_proj_points: float = 0.0
     max_players: Optional[int] = None
+
+    # feature knobs (match TrainingConfig defaults)
+    captain_tiers: List[Tuple[int, str]] = field(default_factory=lambda: SegmentDefinitions().captain_tiers)
+    own_log_eps: float = 1e-6
 
 

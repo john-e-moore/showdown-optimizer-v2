@@ -86,7 +86,7 @@ Each distribution file includes:
 - validation stats (mean, p50, p90)
 
 ## 5b) Lineup Universe (output of contest pipeline, optional early step)
-**Name:** `lineups.parquet` + `players.parquet` + `metadata.json`
+**Name:** `lineups.parquet` + `lineups_enriched.parquet` + `players.parquet` + `metadata.json`
 
 This artifact represents the full set of legal showdown lineups for a slate.
 Lineups are stored as **indices** into the corresponding `players.parquet` row order.
@@ -121,6 +121,26 @@ Invariants:
 - No duplicates within a lineup (`cpt` not in `u1..u5`, and `u1..u5` all distinct).
 - Salary cap respected: `salary_used <= 50000` (unless config overrides salary cap).
 - NBA showdown stack legality: no `6-0` team stacks.
+
+### 5b.2b Enriched lineups table (dup-model features)
+**Name:** `lineups_enriched.parquet`
+
+This is the same row set as `lineups.parquet` with additional per-lineup features used by the
+duplication/share model.
+
+Columns:
+- base (same meaning as `lineups.parquet`):
+  - `cpt`, `u1`, `u2`, `u3`, `u4`, `u5`
+  - `salary_used`, `salary_left`, `proj_points`, `stack_code`
+- added:
+  - `own_score_logprod` (float) — sum of `log(own)` across all 6 players; CPT treated same as UTIL
+  - `own_max_log` (float) — max `log(own)` across the 6 players
+  - `own_min_log` (float) — min `log(own)` across the 6 players
+  - `avg_corr` (float) — average pairwise Pearson correlation across the 6 players (denominator 15)
+  - `cpt_archetype` (string; see `SegmentDefinitions.captain_tiers`)
+  - `salary_left_bin` (string; bins: `0_200`, `200_500`, `500_1000`, `1000_2000`, `2000_plus`)
+  - `pct_proj_gap_to_optimal` (float) — \((optimal - proj_points) / optimal\)
+  - `pct_proj_gap_to_optimal_bin` (string; bins: `0_0.01`, `0.01_0.02`, `0.02_0.04`, `0.04_0.07`, `0.07_plus`)
 
 ### 5b.3 Metadata
 **Name:** `metadata.json`

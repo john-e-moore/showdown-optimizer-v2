@@ -6,11 +6,14 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Dict, List
 
+import numpy as np
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
 from dfs_opt.config.settings import ContestConfig
+from dfs_opt.lineup_pool.enrich_universe_showdown import enrich_lineup_universe_showdown
+from dfs_opt.features.optimal import compute_optimal_showdown_proj
 from dfs_opt.io.artifacts import ArtifactWriter, new_run_id, utc_now
 from dfs_opt.models.manifests import ManifestIO, RunManifest
 from dfs_opt.parsing.sabersim import parse_sabersim_showdown_csv
@@ -74,11 +77,22 @@ def run_contest_lineup_gen(config: ContestConfig) -> Dict[str, Any]:
                     "slate_id": str(config.slate_id),
                     "path": str(config.projection_csv),
                     "sha256": sha256_file(str(config.projection_csv)),
-                }
+                },
+                {
+                    "kind": "corr_matrix",
+                    "sport": str(config.sport).lower(),
+                    "slate_id": str(config.slate_id),
+                    "path": str(config.corr_matrix_csv),
+                    "sha256": sha256_file(str(config.corr_matrix_csv)),
+                },
             ]
         )
-        step00_inputs = [(str(config.projection_csv), sha256_file(str(config.projection_csv)), "sabersim_projection")]
+        step00_inputs = [
+            (str(config.projection_csv), sha256_file(str(config.projection_csv)), "sabersim_projection"),
+            (str(config.corr_matrix_csv), sha256_file(str(config.corr_matrix_csv)), "corr_matrix_csv"),
+        ]
         run_inputs.append(ManifestIO(path=step00_inputs[0][0], checksum_sha256=step00_inputs[0][1], logical_name=step00_inputs[0][2]))
+        run_inputs.append(ManifestIO(path=step00_inputs[1][0], checksum_sha256=step00_inputs[1][1], logical_name=step00_inputs[1][2]))
 
         writer.write_step(
             step_idx=0,
@@ -165,6 +179,15 @@ def run_contest_lineup_gen(config: ContestConfig) -> Dict[str, Any]:
         )
 
         # Metadata for downstream use.
+        opt_res = compute_optimal_showdown_proj(
+            players_enum_df.rename(columns={"salary": "salary", "proj_points": "proj_points"}),
+            salary_cap=int(config.salary_cap),
+            min_proj_points=float(config.min_proj_points),
+        )
+        optimal_proj_points = float(opt_res.optimal_proj_points)
+        if not (optimal_proj_points > 0.0):
+            raise ValueError(f"Invalid optimal_proj_points computed: {optimal_proj_points}")
+
         metadata = {
             "slate_id": str(config.slate_id),
             "sport": str(config.sport).lower(),
@@ -179,6 +202,33 @@ def run_contest_lineup_gen(config: ContestConfig) -> Dict[str, Any]:
             },
             "schema": {name: str(tbl.schema.field(name).type) for name in tbl.schema.names},
             "stack_code_map": {"0": "3-3", "1": "4-2", "2": "5-1"},
+            "enriched_file": "lineups_enriched.parquet",
+            "enriched_schema": {
+                "cpt": "uint16",
+                "u1": "uint16",
+                "u2": "uint16",
+                "u3": "uint16",
+                "u4": "uint16",
+                "u5": "uint16",
+                "salary_used": "int32",
+                "salary_left": "int32",
+                "proj_points": "float",
+                "stack_code": "uint8",
+                "own_score_logprod": "float",
+                "own_max_log": "float",
+                "own_min_log": "float",
+                "avg_corr": "float",
+                "cpt_archetype": "dictionary<values=string, indices=uint8, ordered=0>",
+                "salary_left_bin": "dictionary<values=string, indices=uint8, ordered=0>",
+                "pct_proj_gap_to_optimal": "float",
+                "pct_proj_gap_to_optimal_bin": "dictionary<values=string, indices=uint8, ordered=0>",
+            },
+            "feature_maps": {
+                "salary_left_bin_labels": ["0_200", "200_500", "500_1000", "1000_2000", "2000_plus"],
+                "pct_proj_gap_to_optimal_bin_labels": ["0_0.01", "0.01_0.02", "0.02_0.04", "0.04_0.07", "0.07_plus"],
+                "cpt_archetype_labels": [lbl for _, lbl in config.captain_tiers],
+            },
+            "optimal_proj_points": optimal_proj_points,
             "timings": res.metrics,
         }
         metadata_path = writer.run_dir / "metadata.json"
@@ -212,6 +262,134 @@ def run_contest_lineup_gen(config: ContestConfig) -> Dict[str, Any]:
             time.perf_counter() - t0,
             int(res.num_players),
             int(res.num_lineups),
+        )
+
+        # -------------------------
+        # 03. enrich_lineup_universe_features
+        # -------------------------
+        step = "03_enrich_lineup_universe_features"
+        step_logger = get_step_logger(logger, step=step)
+        step_logger.info("Starting step")
+        t0 = time.perf_counter()
+
+        enrich_cols, enrich_metrics = enrich_lineup_universe_showdown(
+            players_enum_df=players_enum_df,
+            cpt=res.cpt,
+            u1=res.u1,
+            u2=res.u2,
+            u3=res.u3,
+            u4=res.u4,
+            u5=res.u5,
+            salary_left=res.salary_left,
+            proj_points=res.proj_points,
+            corr_matrix_csv=config.corr_matrix_csv,
+            captain_tiers=config.captain_tiers,
+            optimal_proj_points=optimal_proj_points,
+            own_log_eps=float(config.own_log_eps),
+            salary_cap=int(config.salary_cap),
+            min_proj_points=float(config.min_proj_points),
+        )
+
+        # Build dictionary-encoded categorical columns
+        salary_left_bin_labels = ["0_200", "200_500", "500_1000", "1000_2000", "2000_plus"]
+        gap_bin_labels = ["0_0.01", "0.01_0.02", "0.02_0.04", "0.04_0.07", "0.07_plus"]
+        cpt_arch_labels = list(enrich_cols["cpt_archetype_labels"])
+
+        salary_left_bin = pa.DictionaryArray.from_arrays(
+            pa.array(enrich_cols["salary_left_bin_code"], type=pa.uint8()),
+            pa.array(salary_left_bin_labels, type=pa.string()),
+        )
+        pct_gap_bin = pa.DictionaryArray.from_arrays(
+            pa.array(enrich_cols["pct_proj_gap_to_optimal_bin_code"], type=pa.uint8()),
+            pa.array(gap_bin_labels, type=pa.string()),
+        )
+        cpt_arch = pa.DictionaryArray.from_arrays(
+            pa.array(enrich_cols["cpt_archetype_code"], type=pa.uint8()),
+            pa.array(cpt_arch_labels, type=pa.string()),
+        )
+
+        enriched_tbl = pa.table(
+            {
+                "cpt": pa.array(res.cpt, type=pa.uint16()),
+                "u1": pa.array(res.u1, type=pa.uint16()),
+                "u2": pa.array(res.u2, type=pa.uint16()),
+                "u3": pa.array(res.u3, type=pa.uint16()),
+                "u4": pa.array(res.u4, type=pa.uint16()),
+                "u5": pa.array(res.u5, type=pa.uint16()),
+                "salary_used": pa.array(res.salary_used, type=pa.int32()),
+                "salary_left": pa.array(res.salary_left, type=pa.int32()),
+                "proj_points": pa.array(res.proj_points, type=pa.float32()),
+                "stack_code": pa.array(res.stack_code, type=pa.uint8()),
+                # requested features
+                "own_score_logprod": pa.array(enrich_cols["own_score_logprod"], type=pa.float32()),
+                "own_max_log": pa.array(enrich_cols["own_max_log"], type=pa.float32()),
+                "own_min_log": pa.array(enrich_cols["own_min_log"], type=pa.float32()),
+                "avg_corr": pa.array(enrich_cols["avg_corr"], type=pa.float32()),
+                "cpt_archetype": cpt_arch,
+                "salary_left_bin": salary_left_bin,
+                "pct_proj_gap_to_optimal": pa.array(enrich_cols["pct_proj_gap_to_optimal"], type=pa.float32()),
+                "pct_proj_gap_to_optimal_bin": pct_gap_bin,
+            }
+        )
+
+        lineups_enriched_path = writer.run_dir / "lineups_enriched.parquet"
+        pq.write_table(enriched_tbl, lineups_enriched_path, compression="zstd")
+        run_outputs.append(
+            ManifestIO(
+                path=str(lineups_enriched_path),
+                checksum_sha256=sha256_file(str(lineups_enriched_path)),
+                logical_name="lineups_enriched.parquet",
+            )
+        )
+
+        # Preview/sample for step artifacts
+        k = min(200, int(res.num_lineups))
+        preview_df = pd.DataFrame(
+            {
+                "cpt": res.cpt[:k],
+                "u1": res.u1[:k],
+                "u2": res.u2[:k],
+                "u3": res.u3[:k],
+                "u4": res.u4[:k],
+                "u5": res.u5[:k],
+                "salary_used": res.salary_used[:k],
+                "salary_left": res.salary_left[:k],
+                "proj_points": res.proj_points[:k],
+                "stack_code": res.stack_code[:k],
+                "own_score_logprod": np.asarray(enrich_cols["own_score_logprod"][:k]),
+                "own_max_log": np.asarray(enrich_cols["own_max_log"][:k]),
+                "own_min_log": np.asarray(enrich_cols["own_min_log"][:k]),
+                "avg_corr": np.asarray(enrich_cols["avg_corr"][:k]),
+                "cpt_archetype": [cpt_arch_labels[int(x)] for x in np.asarray(enrich_cols["cpt_archetype_code"][:k])],
+                "salary_left_bin": [salary_left_bin_labels[int(x)] for x in np.asarray(enrich_cols["salary_left_bin_code"][:k])],
+                "pct_proj_gap_to_optimal": np.asarray(enrich_cols["pct_proj_gap_to_optimal"][:k]),
+                "pct_proj_gap_to_optimal_bin": [gap_bin_labels[int(x)] for x in np.asarray(enrich_cols["pct_proj_gap_to_optimal_bin_code"][:k])],
+            }
+        )
+
+        outputs = [
+            (str(lineups_enriched_path), sha256_file(str(lineups_enriched_path)), "lineups_enriched.parquet"),
+        ]
+        writer.write_step(
+            step_idx=3,
+            step_name="enrich_lineup_universe_features",
+            df_in=None,
+            df_out=preview_df,
+            inputs=[(str(config.corr_matrix_csv), sha256_file(str(config.corr_matrix_csv)), "corr_matrix_csv")],
+            outputs=outputs,
+            metrics={
+                "optimal_proj_points": float(enrich_metrics.optimal_proj_points),
+                "corr_missing_pairs_rate": float(enrich_metrics.corr_missing_pairs_rate),
+                "own_log_eps": float(enrich_metrics.own_log_eps),
+            },
+            persist_parquet=config.persist_step_outputs,
+        )
+        row_counts_by_step[step] = {"row_count_in": int(res.num_lineups), "row_count_out": int(res.num_lineups)}
+        step_logger.info(
+            "Finished step: duration_s=%.3f row_count_out=%s optimal_proj_points=%.3f",
+            time.perf_counter() - t0,
+            int(res.num_lineups),
+            float(enrich_metrics.optimal_proj_points),
         )
 
         finished_at = utc_now()
