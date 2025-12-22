@@ -23,30 +23,34 @@ class EnrichUniverseMetrics:
 
 
 def _salary_left_bin_codes(salary_left: np.ndarray) -> np.ndarray:
-    # bins: 0-200, 200-500, 500-1000, 1000-2000, 2000+
-    # labels: ["0_200", "200_500", "500_1000", "1000_2000", "2000_plus"]
+    # bins: 0-200, 200-500, 500-1000, 1000-2000, 2000-4000, 4000-8000, 8000+
+    # labels: ["0_200", "200_500", "500_1000", "1000_2000", "2000_4000", "4000_8000", "8000_plus"]
     x = salary_left.astype(np.int32, copy=False)
-    # codes in 0..4
+    # codes in 0..6
     codes = np.empty(x.shape[0], dtype=np.uint8)
     # vectorized thresholds
     codes[x < 200] = 0
     codes[(x >= 200) & (x < 500)] = 1
     codes[(x >= 500) & (x < 1000)] = 2
     codes[(x >= 1000) & (x < 2000)] = 3
-    codes[x >= 2000] = 4
+    codes[(x >= 2000) & (x < 4000)] = 4
+    codes[(x >= 4000) & (x < 8000)] = 5
+    codes[x >= 8000] = 6
     return codes
 
 
 def _pct_gap_bin_codes(pct_gap: np.ndarray) -> np.ndarray:
-    # bins: 0-1%, 1-2%, 2-4%, 4-7%, 7%+
-    # labels: ["0_0.01", "0.01_0.02", "0.02_0.04", "0.04_0.07", "0.07_plus"]
+    # bins: 0-1%, 1-2%, 2-4%, 4-7%, 7-15%, 15-30%, 30%+
+    # labels: ["0_0.01", "0.01_0.02", "0.02_0.04", "0.04_0.07", "0.07_0.15", "0.15_0.30", "0.30_plus"]
     x = pct_gap.astype(np.float32, copy=False)
     codes = np.empty(x.shape[0], dtype=np.uint8)
     codes[x < 0.01] = 0
     codes[(x >= 0.01) & (x < 0.02)] = 1
     codes[(x >= 0.02) & (x < 0.04)] = 2
     codes[(x >= 0.04) & (x < 0.07)] = 3
-    codes[x >= 0.07] = 4
+    codes[(x >= 0.07) & (x < 0.15)] = 4
+    codes[(x >= 0.15) & (x < 0.30)] = 5
+    codes[x >= 0.30] = 6
     return codes
 
 

@@ -53,12 +53,12 @@ Required columns:
 - computed
   - `salary_used` (int)
   - `salary_left` (int)
-  - `salary_left_bin` (string; bins: `0_200`, `200_500`, `500_1000`, `1000_2000`, `2000_plus`)
+  - `salary_left_bin` (string; bins: `0_200`, `200_500`, `500_1000`, `1000_2000`, `2000_4000`, `4000_8000`, `8000_plus`)
   - `proj_points` (float) — computed from projections
   - `optimal_proj_points` (float)
   - `proj_gap_to_optimal` (float)
   - `pct_proj_gap_to_optimal` (float)
-  - `pct_proj_gap_to_optimal_bin` (string; bins: `0_0.01`, `0.01_0.02`, `0.02_0.04`, `0.04_0.07`, `0.07_plus`)
+  - `pct_proj_gap_to_optimal_bin` (string; bins: `0_0.01`, `0.01_0.02`, `0.02_0.04`, `0.04_0.07`, `0.07_0.15`, `0.15_0.30`, `0.30_plus`)
   - `stack_pattern` (string like `4-2`)
   - `heavy_team` (string)
   - `cpt_team` (string)
@@ -138,9 +138,9 @@ Columns:
   - `own_min_log` (float) — min `log(own)` across the 6 players
   - `avg_corr` (float) — average pairwise Pearson correlation across the 6 players (denominator 15)
   - `cpt_archetype` (string; see `SegmentDefinitions.captain_tiers`)
-  - `salary_left_bin` (string; bins: `0_200`, `200_500`, `500_1000`, `1000_2000`, `2000_plus`)
+  - `salary_left_bin` (string; bins: `0_200`, `200_500`, `500_1000`, `1000_2000`, `2000_4000`, `4000_8000`, `8000_plus`)
   - `pct_proj_gap_to_optimal` (float) — \((optimal - proj_points) / optimal\)
-  - `pct_proj_gap_to_optimal_bin` (string; bins: `0_0.01`, `0.01_0.02`, `0.02_0.04`, `0.04_0.07`, `0.07_plus`)
+  - `pct_proj_gap_to_optimal_bin` (string; bins: `0_0.01`, `0.01_0.02`, `0.02_0.04`, `0.04_0.07`, `0.07_0.15`, `0.15_0.30`, `0.30_plus`)
 
 ### 5b.3 Metadata
 **Name:** `metadata.json`

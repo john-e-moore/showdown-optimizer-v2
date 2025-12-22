@@ -224,8 +224,24 @@ def run_contest_lineup_gen(config: ContestConfig) -> Dict[str, Any]:
                 "pct_proj_gap_to_optimal_bin": "dictionary<values=string, indices=uint8, ordered=0>",
             },
             "feature_maps": {
-                "salary_left_bin_labels": ["0_200", "200_500", "500_1000", "1000_2000", "2000_plus"],
-                "pct_proj_gap_to_optimal_bin_labels": ["0_0.01", "0.01_0.02", "0.02_0.04", "0.04_0.07", "0.07_plus"],
+                "salary_left_bin_labels": [
+                    "0_200",
+                    "200_500",
+                    "500_1000",
+                    "1000_2000",
+                    "2000_4000",
+                    "4000_8000",
+                    "8000_plus",
+                ],
+                "pct_proj_gap_to_optimal_bin_labels": [
+                    "0_0.01",
+                    "0.01_0.02",
+                    "0.02_0.04",
+                    "0.04_0.07",
+                    "0.07_0.15",
+                    "0.15_0.30",
+                    "0.30_plus",
+                ],
                 "cpt_archetype_labels": [lbl for _, lbl in config.captain_tiers],
             },
             "optimal_proj_points": optimal_proj_points,
@@ -291,8 +307,24 @@ def run_contest_lineup_gen(config: ContestConfig) -> Dict[str, Any]:
         )
 
         # Build dictionary-encoded categorical columns
-        salary_left_bin_labels = ["0_200", "200_500", "500_1000", "1000_2000", "2000_plus"]
-        gap_bin_labels = ["0_0.01", "0.01_0.02", "0.02_0.04", "0.04_0.07", "0.07_plus"]
+        salary_left_bin_labels = [
+            "0_200",
+            "200_500",
+            "500_1000",
+            "1000_2000",
+            "2000_4000",
+            "4000_8000",
+            "8000_plus",
+        ]
+        gap_bin_labels = [
+            "0_0.01",
+            "0.01_0.02",
+            "0.02_0.04",
+            "0.04_0.07",
+            "0.07_0.15",
+            "0.15_0.30",
+            "0.30_plus",
+        ]
         cpt_arch_labels = list(enrich_cols["cpt_archetype_labels"])
 
         salary_left_bin = pa.DictionaryArray.from_arrays(

@@ -163,8 +163,8 @@ def enrich_showdown_entries(
         raise ValueError(f"salary_left negative for {bad} rows; expected <= cap")
 
     # salary_left bins (half-open, left-inclusive)
-    salary_bins = [0, 200, 500, 1000, 2000, float("inf")]
-    salary_labels = ["0_200", "200_500", "500_1000", "1000_2000", "2000_plus"]
+    salary_bins = [0, 200, 500, 1000, 2000, 4000, 8000, float("inf")]
+    salary_labels = ["0_200", "200_500", "500_1000", "1000_2000", "2000_4000", "4000_8000", "8000_plus"]
     df_ok["salary_left_bin"] = pd.cut(
         df_ok["salary_left"].astype(float),
         bins=salary_bins,

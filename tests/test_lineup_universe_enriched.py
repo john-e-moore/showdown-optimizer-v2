@@ -79,8 +79,8 @@ def test_lineups_enriched_has_expected_columns_and_sane_values(tmp_path: Path) -
     assert (df["own_min_log"].astype(float) <= df["own_max_log"].astype(float)).all()
     assert all(math.isfinite(float(x)) for x in df["avg_corr"].astype(float).tolist())
 
-    salary_bins = {"0_200", "200_500", "500_1000", "1000_2000", "2000_plus"}
-    gap_bins = {"0_0.01", "0.01_0.02", "0.02_0.04", "0.04_0.07", "0.07_plus"}
+    salary_bins = {"0_200", "200_500", "500_1000", "1000_2000", "2000_4000", "4000_8000", "8000_plus"}
+    gap_bins = {"0_0.01", "0.01_0.02", "0.02_0.04", "0.04_0.07", "0.07_0.15", "0.15_0.30", "0.30_plus"}
     assert set(map(str, df["salary_left_bin"].tolist())).issubset(salary_bins)
     assert set(map(str, df["pct_proj_gap_to_optimal_bin"].tolist())).issubset(gap_bins)
 
