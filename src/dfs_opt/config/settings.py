@@ -61,6 +61,18 @@ class TrainingConfig:
     # segmentation + feature config
     segment_definitions: SegmentDefinitions = field(default_factory=SegmentDefinitions)
 
+    # Path to precomputed per-slate lineup universes (produced by Pipeline B / offline backfill).
+    # Expected layout:
+    #   <universe_root>/dk-results/showdown/<sport>/<slate_id>/lineups_enriched.parquet
+    universe_root: Path = Path("data/historical/enriched")
+
+    # --- softmax lineup share model (optional step) ---
+    share_model_enabled: bool = False
+    share_model_lambda: float = 1e-3
+    share_model_max_iter: int = 200
+    share_model_val_slate_frac: float = 0.2
+    share_model_seed: int = 1337
+
 
 @dataclass(frozen=True)
 class ContestConfig:

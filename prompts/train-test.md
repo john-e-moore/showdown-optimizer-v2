@@ -126,7 +126,7 @@ One of:
 - `stud_1_2` (top 2 salaries)
 - `stud_3_5` (ranks 3–5)
 - `mid_6_10` (ranks 6–10)
-- `value_11+` (rank 11 or lower)
+- `value_11_plus` (rank 11 or lower)
 
 Encoded as one-hot with a reference category (or full one-hot if using no intercept).
 

@@ -17,6 +17,7 @@ dependencies = [
   "pyarrow>=16.0.0",
   "structlog>=24.1.0",
   "numba>=0.59.0",
+  "scipy>=1.11.0",
 ]
 
 [project.optional-dependencies]

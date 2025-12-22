@@ -4,25 +4,25 @@ overview: Implement the multinomial softmax lineup-share model described in prom
 todos:
   - id: config-universe-root
     content: Add `universe_root` + share-model knobs to TrainingConfig and expose via config loader + CLI.
-    status: pending
+    status: completed
   - id: softmax-module
     content: Implement `FeatureSchema`, streaming universe expectation, multinomial NLL+grad, and SciPy L-BFGS-B fitting in a new `dfs_opt/share_model` module.
-    status: pending
+    status: completed
     dependencies:
       - config-universe-root
   - id: pipeline-step
     content: Add Pipeline A step `06_fit_softmax_lineup_share` that fits per `gpp_category` and writes artifacts under the run directory.
-    status: pending
+    status: completed
     dependencies:
       - softmax-module
   - id: artifacts-contracts
     content: Document new artifacts in `agent/DATA_CONTRACTS.md` and add the step to `agent/PIPELINES.md` (plus small label alignment in `prompts/train-test.md`).
-    status: pending
+    status: completed
     dependencies:
       - pipeline-step
   - id: tests
     content: Add unit + integration tests covering artifact writing and basic fit behavior (including finite-diff gradient sanity).
-    status: pending
+    status: completed
     dependencies:
       - softmax-module
       - pipeline-step

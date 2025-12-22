@@ -17,7 +17,9 @@ src/dfs_opt/features/optimal.py
 src/dfs_opt/io/artifacts.py
 src/dfs_opt/io/inventory.py
 src/dfs_opt/lineup_pool/__init__.py
+src/dfs_opt/lineup_pool/enrich_universe_showdown.py
 src/dfs_opt/lineup_pool/enumerate_universe_showdown.py
+src/dfs_opt/lineup_pool/numba_kernels_features.py
 src/dfs_opt/lineup_pool/numba_kernels_showdown.py
 src/dfs_opt/models/lineup.py
 src/dfs_opt/models/manifests.py
@@ -30,6 +32,8 @@ src/dfs_opt/pipelines/contest.py
 src/dfs_opt/pipelines/training.py
 src/dfs_opt/resources/__init__.py
 src/dfs_opt/resources/gpp_contests.yaml
+src/dfs_opt/share_model/__init__.py
+src/dfs_opt/share_model/softmax_share.py
 src/dfs_opt/utils/__init__.py
 src/dfs_opt/utils/git.py
 src/dfs_opt/utils/hashing.py
@@ -45,6 +49,7 @@ tests/test_dk_lineup_parsing.py
 tests/test_enrich_showdown.py
 tests/test_entryname_segmentation.py
 tests/test_golden_example_enriched_entries.py
+tests/test_lineup_universe_enriched.py
 tests/test_lineup_universe_showdown.py
 tests/test_optimal_showdown.py
 tests/test_sabersim_parsing.py

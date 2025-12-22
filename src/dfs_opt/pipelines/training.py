@@ -21,6 +21,7 @@ from dfs_opt.io.inventory import SlateInputs, build_input_inventory, find_showdo
 from dfs_opt.models.manifests import ManifestIO, RunManifest
 from dfs_opt.parsing.dk_standings import parse_dk_showdown_entries
 from dfs_opt.parsing.sabersim import parse_sabersim_showdown_csv
+from dfs_opt.share_model.softmax_share import FeatureSchema, FitConfig, fit_softmax_share_model_bucket
 from dfs_opt.utils.git import try_get_git_sha
 from dfs_opt.utils.hashing import sha256_file
 from dfs_opt.utils.logging import configure_run_logger, get_step_logger
@@ -556,6 +557,83 @@ def run_training_pipeline(config: TrainingConfig) -> Dict[str, Any]:
             int(len(dist_df)),
             int(len(dist_rows)),
         )
+
+        # -------------------------
+        # 06. fit_softmax_lineup_share (optional)
+        # -------------------------
+        if bool(getattr(config, "share_model_enabled", False)):
+            step = "06_fit_softmax_lineup_share"
+            step_logger = get_step_logger(logger, step=step)
+            step_logger.info("Starting step")
+            t0 = time.perf_counter()
+
+            schema = FeatureSchema()
+            fit_cfg = FitConfig(
+                l2_lambda=float(getattr(config, "share_model_lambda", 1e-3)),
+                max_iter=int(getattr(config, "share_model_max_iter", 200)),
+                val_slate_frac=float(getattr(config, "share_model_val_slate_frac", 0.2)),
+                seed=int(getattr(config, "share_model_seed", int(config.seed))),
+            )
+
+            results: List[Dict[str, Any]] = []
+            outputs_06: List[Tuple[str, str, str]] = []
+            for gpp_category, grp in enriched_with_gap.groupby("gpp_category", dropna=False):
+                cat = str(gpp_category)
+                step_logger.info("Fitting share model: gpp_category=%s n_rows=%s", cat, int(len(grp)))
+                res = fit_softmax_share_model_bucket(
+                    bucket_entries=grp,
+                    gpp_category=cat,
+                    universe_root=Path(config.universe_root),
+                    artifacts_dir=writer.run_dir,
+                    fit=fit_cfg,
+                    schema=schema,
+                )
+                results.append(res)
+
+                # Register outputs in run manifest.
+                theta_path = str(res["theta_path"])
+                metrics_path = str(res["fit_metrics_path"])
+                outputs_06.append((theta_path, sha256_file(theta_path), f"share_model_theta:{cat}"))
+                outputs_06.append((metrics_path, sha256_file(metrics_path), f"share_model_fit_metrics:{cat}"))
+                run_outputs.append(
+                    ManifestIO(path=theta_path, checksum_sha256=sha256_file(theta_path), logical_name=f"share_model_theta:{cat}")
+                )
+                run_outputs.append(
+                    ManifestIO(
+                        path=metrics_path,
+                        checksum_sha256=sha256_file(metrics_path),
+                        logical_name=f"share_model_fit_metrics:{cat}",
+                    )
+                )
+
+            res_df = pd.DataFrame(results)
+            writer.write_step(
+                step_idx=6,
+                step_name="fit_softmax_lineup_share",
+                df_in=enriched_with_gap,
+                df_out=res_df,
+                inputs=[],
+                outputs=outputs_06,
+                metrics={
+                    "num_categories": int(len(results)),
+                    "universe_root": str(getattr(config, "universe_root", "")),
+                    "fit_config": asdict(fit_cfg),
+                    "feature_schema": {
+                        "intercept": bool(schema.intercept),
+                        "continuous": list(schema.continuous),
+                    },
+                },
+                persist_parquet=config.persist_step_outputs,
+            )
+            row_counts_by_step[step] = {
+                "row_count_in": int(len(enriched_with_gap)),
+                "row_count_out": int(len(res_df)),
+            }
+            step_logger.info(
+                "Finished step: duration_s=%.3f num_categories=%s",
+                time.perf_counter() - t0,
+                int(len(results)),
+            )
 
         # Write final parquet output
         entries_path = writer.run_dir / "entries_enriched.parquet"
