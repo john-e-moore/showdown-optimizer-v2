@@ -85,7 +85,7 @@ def test_enrich_showdown_computes_salary_proj_stack_dup_and_archetype(tmp_path: 
     # salary: 1.5*10000 + (8000+6000+4000+7000+5000) = 45000
     assert enriched["salary_used"].tolist() == [45000, 45000]
     assert enriched["salary_left"].tolist() == [5000, 5000]
-    assert enriched["salary_left_bin"].tolist() == ["2000_plus", "2000_plus"]
+    assert enriched["salary_left_bin"].tolist() == ["4000_8000", "4000_8000"]
 
     # proj: 1.5*20 + (16+12+8+14+10) = 90
     assert enriched["proj_points"].tolist() == [90.0, 90.0]

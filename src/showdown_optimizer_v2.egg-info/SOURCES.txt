@@ -1,6 +1,7 @@
 README.md
 pyproject.toml
 src/dfs_opt/__init__.py
+src/dfs_opt/cli/contest.py
 src/dfs_opt/cli/main.py
 src/dfs_opt/cli/training.py
 src/dfs_opt/config/gpp_bins.py
@@ -10,10 +11,14 @@ src/dfs_opt/distributions/__init__.py
 src/dfs_opt/distributions/fit.py
 src/dfs_opt/distributions/schemas.py
 src/dfs_opt/features/__init__.py
+src/dfs_opt/features/correlation.py
 src/dfs_opt/features/enrich_showdown.py
 src/dfs_opt/features/optimal.py
 src/dfs_opt/io/artifacts.py
 src/dfs_opt/io/inventory.py
+src/dfs_opt/lineup_pool/__init__.py
+src/dfs_opt/lineup_pool/enumerate_universe_showdown.py
+src/dfs_opt/lineup_pool/numba_kernels_showdown.py
 src/dfs_opt/models/lineup.py
 src/dfs_opt/models/manifests.py
 src/dfs_opt/parsing/__init__.py
@@ -21,6 +26,7 @@ src/dfs_opt/parsing/dk_lineup.py
 src/dfs_opt/parsing/dk_standings.py
 src/dfs_opt/parsing/names.py
 src/dfs_opt/parsing/sabersim.py
+src/dfs_opt/pipelines/contest.py
 src/dfs_opt/pipelines/training.py
 src/dfs_opt/resources/__init__.py
 src/dfs_opt/resources/gpp_contests.yaml
@@ -39,6 +45,7 @@ tests/test_dk_lineup_parsing.py
 tests/test_enrich_showdown.py
 tests/test_entryname_segmentation.py
 tests/test_golden_example_enriched_entries.py
+tests/test_lineup_universe_showdown.py
 tests/test_optimal_showdown.py
 tests/test_sabersim_parsing.py
 tests/test_training_pipeline_artifacts.py

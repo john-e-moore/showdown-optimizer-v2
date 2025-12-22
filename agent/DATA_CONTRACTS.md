@@ -53,12 +53,12 @@ Required columns:
 - computed
   - `salary_used` (int)
   - `salary_left` (int)
-  - `salary_left_bin` (string; bins: `0_200`, `200_500`, `500_1000`, `1000_2000`, `2000_plus`)
+  - `salary_left_bin` (string; bins: `0_200`, `200_500`, `500_1000`, `1000_2000`, `2000_4000`, `4000_8000`, `8000_plus`)
   - `proj_points` (float) — computed from projections
   - `optimal_proj_points` (float)
   - `proj_gap_to_optimal` (float)
   - `pct_proj_gap_to_optimal` (float)
-  - `pct_proj_gap_to_optimal_bin` (string; bins: `0_0.01`, `0.01_0.02`, `0.02_0.04`, `0.04_0.07`, `0.07_plus`)
+  - `pct_proj_gap_to_optimal_bin` (string; bins: `0_0.01`, `0.01_0.02`, `0.02_0.04`, `0.04_0.07`, `0.07_0.15`, `0.15_0.30`, `0.30_plus`)
   - `stack_pattern` (string like `4-2`)
   - `heavy_team` (string)
   - `cpt_team` (string)
@@ -84,6 +84,75 @@ Each distribution file includes:
 - `source_contests` (list)
 - `counts` and/or `bin_edges`
 - validation stats (mean, p50, p90)
+
+## 5b) Lineup Universe (output of contest pipeline, optional early step)
+**Name:** `lineups.parquet` + `lineups_enriched.parquet` + `players.parquet` + `metadata.json`
+
+This artifact represents the full set of legal showdown lineups for a slate.
+Lineups are stored as **indices** into the corresponding `players.parquet` row order.
+
+### 5b.1 Players table (index basis)
+**Name:** `players.parquet`
+
+Minimum expected columns:
+- `name_norm` (string)
+- `team` (string)
+- `salary` (int)
+- `proj_points` (float)
+
+Additional columns may be present (e.g., `own`, `minutes`) and should be treated as optional.
+
+### 5b.2 Lineups table
+**Name:** `lineups.parquet`
+
+Columns:
+- slots (uint16 indices into `players.parquet`):
+  - `cpt`, `u1`, `u2`, `u3`, `u4`, `u5`
+- computed:
+  - `salary_used` (int32)
+  - `salary_left` (int32)
+  - `proj_points` (float32) — CPT treated as 1.5x
+  - `stack_code` (uint8):
+    - `0` = `3-3`
+    - `1` = `4-2`
+    - `2` = `5-1`
+
+Invariants:
+- No duplicates within a lineup (`cpt` not in `u1..u5`, and `u1..u5` all distinct).
+- Salary cap respected: `salary_used <= 50000` (unless config overrides salary cap).
+- NBA showdown stack legality: no `6-0` team stacks.
+
+### 5b.2b Enriched lineups table (dup-model features)
+**Name:** `lineups_enriched.parquet`
+
+This is the same row set as `lineups.parquet` with additional per-lineup features used by the
+duplication/share model.
+
+Columns:
+- base (same meaning as `lineups.parquet`):
+  - `cpt`, `u1`, `u2`, `u3`, `u4`, `u5`
+  - `salary_used`, `salary_left`, `proj_points`, `stack_code`
+- added:
+  - `own_score_logprod` (float) — sum of `log(own)` across all 6 players; CPT treated same as UTIL
+  - `own_max_log` (float) — max `log(own)` across the 6 players
+  - `own_min_log` (float) — min `log(own)` across the 6 players
+  - `avg_corr` (float) — average pairwise Pearson correlation across the 6 players (denominator 15)
+  - `cpt_archetype` (string; see `SegmentDefinitions.captain_tiers`)
+  - `salary_left_bin` (string; bins: `0_200`, `200_500`, `500_1000`, `1000_2000`, `2000_4000`, `4000_8000`, `8000_plus`)
+  - `pct_proj_gap_to_optimal` (float) — \((optimal - proj_points) / optimal\)
+  - `pct_proj_gap_to_optimal_bin` (string; bins: `0_0.01`, `0.01_0.02`, `0.02_0.04`, `0.04_0.07`, `0.07_0.15`, `0.15_0.30`, `0.30_plus`)
+
+### 5b.3 Metadata
+**Name:** `metadata.json`
+
+Minimum keys:
+- `slate_id`, `sport`, `created_at_utc`
+- `salary_cap`
+- `num_players`, `num_lineups`
+- `team_mapping` (stable mapping of team string → 0/1 used for legality checks)
+- `schema` (column → dtype)
+- `stack_code_map`
+- `timings` (kernel timing metrics)
 
 ## 6) Run manifests (required for every CLI run)
 **Name:** `run_manifest.json`

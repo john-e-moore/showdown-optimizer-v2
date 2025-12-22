@@ -18,7 +18,7 @@ Introduce additional features into pipeline a, which enriches historical project
 6. pct_proj_gap_to_optimal
  - Defined as proj_gap_to_optimal / optimal_proj_points
 7. pct_proj_gap_to_optimal_bin
- - Bins for the previous feature: 0-1%, 1-2%, 2-4%, 4-7%, 7%+ (use decimals instead of % in the data).
+ - Bins for the previous feature: 0-1%, 1-2%, 2-4%, 4-7%, 7-15%, 15-30%, 30%+ (use decimals instead of % in the data).
 7. salary_left_bin 
- - Bins for salary remaining: 0-200, 200-500, 500-1000, 1000-2000, 2000+
+ - Bins for salary remaining: 0-200, 200-500, 500-1000, 1000-2000, 2000-4000, 4000-8000, 8000+
 

@@ -472,8 +472,8 @@ def run_training_pipeline(config: TrainingConfig) -> Dict[str, Any]:
                 raise ValueError(f"proj_gap_to_optimal < 0 for slate_id={slate_id} (min={bad})")
             pct_gap = (tmp["proj_gap_to_optimal"].astype(float) / float(res.optimal_proj_points)).clip(lower=0.0)
             tmp["pct_proj_gap_to_optimal"] = pct_gap
-            gap_bins = [0.0, 0.01, 0.02, 0.04, 0.07, float("inf")]
-            gap_labels = ["0_0.01", "0.01_0.02", "0.02_0.04", "0.04_0.07", "0.07_plus"]
+            gap_bins = [0.0, 0.01, 0.02, 0.04, 0.07, 0.15, 0.30, float("inf")]
+            gap_labels = ["0_0.01", "0.01_0.02", "0.02_0.04", "0.04_0.07", "0.07_0.15", "0.15_0.30", "0.30_plus"]
             tmp["pct_proj_gap_to_optimal_bin"] = pd.cut(
                 tmp["pct_proj_gap_to_optimal"].astype(float),
                 bins=gap_bins,
