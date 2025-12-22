@@ -218,10 +218,10 @@ def run_contest_lineup_gen(config: ContestConfig) -> Dict[str, Any]:
                 "own_max_log": "float",
                 "own_min_log": "float",
                 "avg_corr": "float",
-                "cpt_archetype": "dictionary<values=string, indices=uint8, ordered=0>",
-                "salary_left_bin": "dictionary<values=string, indices=uint8, ordered=0>",
+                "cpt_archetype": "dictionary<values=string, indices=int32, ordered=0>",
+                "salary_left_bin": "dictionary<values=string, indices=int32, ordered=0>",
                 "pct_proj_gap_to_optimal": "float",
-                "pct_proj_gap_to_optimal_bin": "dictionary<values=string, indices=uint8, ordered=0>",
+                "pct_proj_gap_to_optimal_bin": "dictionary<values=string, indices=int32, ordered=0>",
             },
             "feature_maps": {
                 "salary_left_bin_labels": [
@@ -327,16 +327,17 @@ def run_contest_lineup_gen(config: ContestConfig) -> Dict[str, Any]:
         ]
         cpt_arch_labels = list(enrich_cols["cpt_archetype_labels"])
 
+        # Use signed dictionary indices for better pandas compatibility (pyarrow limitation).
         salary_left_bin = pa.DictionaryArray.from_arrays(
-            pa.array(enrich_cols["salary_left_bin_code"], type=pa.uint8()),
+            pa.array(enrich_cols["salary_left_bin_code"], type=pa.int32()),
             pa.array(salary_left_bin_labels, type=pa.string()),
         )
         pct_gap_bin = pa.DictionaryArray.from_arrays(
-            pa.array(enrich_cols["pct_proj_gap_to_optimal_bin_code"], type=pa.uint8()),
+            pa.array(enrich_cols["pct_proj_gap_to_optimal_bin_code"], type=pa.int32()),
             pa.array(gap_bin_labels, type=pa.string()),
         )
         cpt_arch = pa.DictionaryArray.from_arrays(
-            pa.array(enrich_cols["cpt_archetype_code"], type=pa.uint8()),
+            pa.array(enrich_cols["cpt_archetype_code"], type=pa.int32()),
             pa.array(cpt_arch_labels, type=pa.string()),
         )
 

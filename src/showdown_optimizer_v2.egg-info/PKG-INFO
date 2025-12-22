@@ -12,6 +12,7 @@ Requires-Dist: typer>=0.12.3
 Requires-Dist: pyarrow>=16.0.0
 Requires-Dist: structlog>=24.1.0
 Requires-Dist: numba>=0.59.0
+Requires-Dist: scipy>=1.11.0
 Provides-Extra: dev
 Requires-Dist: pytest>=8.2.0; extra == "dev"
 Requires-Dist: ruff>=0.6.0; extra == "dev"

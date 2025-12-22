@@ -54,6 +54,15 @@ Step names and ordering must remain stable; if you change them, update this docu
   - duplication histogram (dup_count distribution)
 - Artifacts: `target_distributions.json` + validation summary (mean/p50/p90, totals sum checks).
 
+06. **fit_softmax_lineup_share** (optional)
+- Fit the multinomial softmax lineup share model (discrete-choice) per `gpp_category`, using:
+  - `entries_enriched.parquet` (observed contest lineup counts + lineup features)
+  - precomputed `lineups_enriched.parquet` universes under `TrainingConfig.universe_root`
+- Outputs under the run dir:
+  - `share_models/<gpp_category>/theta.json`
+  - `share_models/<gpp_category>/fit_metrics.json`
+  - optional diagnostics: `share_models/<gpp_category>/diagnostics/val_marginals.json`
+
 ### Outputs
 - `entries_enriched.parquet`
 - `target_distributions/*.json` (versioned by segment and date range)

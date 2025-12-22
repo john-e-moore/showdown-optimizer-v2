@@ -142,6 +142,49 @@ Columns:
   - `pct_proj_gap_to_optimal` (float) — \((optimal - proj_points) / optimal\)
   - `pct_proj_gap_to_optimal_bin` (string; bins: `0_0.01`, `0.01_0.02`, `0.02_0.04`, `0.04_0.07`, `0.07_0.15`, `0.15_0.30`, `0.30_plus`)
 
+Note on storage: in the parquet written by Pipeline B, these categorical columns are typically **dictionary-encoded**
+for size (indices are signed ints for pandas compatibility).
+
+## 5c) Softmax lineup share model artifacts (output of Pipeline A, optional)
+
+### 5c.1 Model parameters
+**Name:** `share_models/<gpp_category>/theta.json`
+
+Minimum keys:
+- `schema_version` (int)
+- `gpp_category` (string)
+- `sport` (string)
+- `feature_schema` (object):
+  - `intercept` (bool)
+  - `continuous` (list[string])
+  - `cpt_archetype_levels` (list[string])
+  - `stack_pattern_levels` (list[string])
+  - `salary_left_bin_levels` (list[string])
+  - `pct_gap_bin_levels` (list[string])
+  - `param_names` (list[string])
+- `theta` (object): mapping from `param_name` → coefficient (float)
+
+### 5c.2 Fit metrics
+**Name:** `share_models/<gpp_category>/fit_metrics.json`
+
+Minimum keys:
+- `schema_version` (int)
+- `gpp_category` (string)
+- `sport` (string)
+- `optimizer` (object): method, success, status, message, iterations
+- `fit_config` (object): lambda, max_iter, val split
+- `data` (object): train/val slate ids, missing-universe slates
+- `metrics` (object): train/val NLL and per-entry versions
+
+### 5c.3 Diagnostics (optional)
+**Name:** `share_models/<gpp_category>/diagnostics/val_marginals.json`
+
+Contains predicted vs actual marginal distributions on held-out validation slates for:
+- `salary_left_bin`
+- `pct_proj_gap_to_optimal_bin`
+- `stack_pattern`
+- `cpt_archetype`
+
 ### 5b.3 Metadata
 **Name:** `metadata.json`
 

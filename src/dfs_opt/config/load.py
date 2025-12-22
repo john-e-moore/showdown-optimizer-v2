@@ -51,6 +51,12 @@ def training_config_from_dict(data: Dict[str, Any]) -> TrainingConfig:
         log_level=str(data.get("log_level", "INFO")),
         gpp_category=data.get("gpp_category"),
         segment_definitions=seg_defs,
+        universe_root=Path(data.get("universe_root", TrainingConfig.universe_root)),
+        share_model_enabled=bool(data.get("share_model_enabled", False)),
+        share_model_lambda=float(data.get("share_model_lambda", 1e-3)),
+        share_model_max_iter=int(data.get("share_model_max_iter", 200)),
+        share_model_val_slate_frac=float(data.get("share_model_val_slate_frac", 0.2)),
+        share_model_seed=int(data.get("share_model_seed", 1337)),
     )
 
 
@@ -63,6 +69,12 @@ def apply_cli_overrides(
     persist_step_outputs: Optional[bool] = None,
     log_level: Optional[str] = None,
     gpp_category: Optional[str] = None,
+    universe_root: Optional[Path] = None,
+    share_model_enabled: Optional[bool] = None,
+    share_model_lambda: Optional[float] = None,
+    share_model_max_iter: Optional[int] = None,
+    share_model_val_slate_frac: Optional[float] = None,
+    share_model_seed: Optional[int] = None,
 ) -> TrainingConfig:
     return replace(
         cfg,
@@ -74,6 +86,14 @@ def apply_cli_overrides(
         else cfg.persist_step_outputs,
         log_level=log_level if log_level is not None else cfg.log_level,
         gpp_category=gpp_category if gpp_category is not None else cfg.gpp_category,
+        universe_root=universe_root if universe_root is not None else cfg.universe_root,
+        share_model_enabled=share_model_enabled if share_model_enabled is not None else cfg.share_model_enabled,
+        share_model_lambda=share_model_lambda if share_model_lambda is not None else cfg.share_model_lambda,
+        share_model_max_iter=share_model_max_iter if share_model_max_iter is not None else cfg.share_model_max_iter,
+        share_model_val_slate_frac=share_model_val_slate_frac
+        if share_model_val_slate_frac is not None
+        else cfg.share_model_val_slate_frac,
+        share_model_seed=share_model_seed if share_model_seed is not None else cfg.share_model_seed,
     )
 
 
