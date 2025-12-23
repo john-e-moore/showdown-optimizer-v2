@@ -167,9 +167,25 @@ def export_contest_csvs(
     )
     top_out = top_df.merge(top_enriched, on="lineup_id", how="left")
 
+    # Add duplication counts from the sampled contest field.
+    # If a top lineup does not appear in the sampled field, its dup_count is 0.
+    dup_map = (
+        field_df[["lineup_id", "dup_count"]]
+        .dropna(subset=["lineup_id"])
+        .astype({"lineup_id": int})
+        .drop_duplicates(subset=["lineup_id"], keep="last")
+        .set_index("lineup_id")["dup_count"]
+    )
+    top_out["dup_count"] = (
+        top_out["lineup_id"].map(dup_map).fillna(0).astype("Int64")
+        if len(top_out)
+        else pd.Series(dtype="Int64")
+    )
+
     # Keep the core grading metrics, plus readable slots and requested features.
     cols: List[str] = [
         "lineup_id",
+        "dup_count",
         "roi",
         "exp_winnings",
         "top_0_1_pct",
