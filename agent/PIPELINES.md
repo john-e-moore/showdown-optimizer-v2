@@ -124,6 +124,7 @@ sampled directly from softmax-implied lineup shares.
     candidate lineups if scoring a provided set)
 - Outputs (per contest):
   - `field_sample.parquet` (entry-level or `{lineup_id -> dup_count}`)
+  - `field_sample.csv` (same as parquet, but with readable slots as `Name (DFS ID)` plus `proj_points`, `salary_used`, `avg_corr`)
   - `pruned_universe.parquet`
 - Metrics: implied duplication histogram, prune size, cumulative mass retained.
 
@@ -134,6 +135,7 @@ sampled directly from softmax-implied lineup shares.
   - top-% finish rates (e.g., 0.1%, 1%, 5%, 20%)
 - Outputs (per contest):
   - `lineup_grades.parquet`
+  - `lineup_grades_top1000.csv` (top 1000 by ROI; readable slots as `Name (DFS ID)` plus `proj_points`, `salary_used`, `avg_corr`)
 - Metrics: runtime, sim count, stability diagnostics.
 
 07. **assign_best_lineups_to_entries**
@@ -143,11 +145,16 @@ sampled directly from softmax-implied lineup shares.
   - `DKEntries_filled.csv`
   - exposure/summary tables
 
-08. **write_outputs**
+08. **export_contest_csvs**
+- Write human-readable per-contest CSVs alongside parquet outputs:
+  - `field_sample.csv`
+  - `lineup_grades_top1000.csv`
+
+09. **write_outputs**
 - Write run + step manifests and artifacts for reproducibility.
 
 ### Outputs
 - `DKEntries_filled.csv`
 - `lineups.parquet`, `lineups_enriched.parquet`, `lineup_utilities.parquet`
 - per-contest artifacts (one folder per contest): `field_sample.parquet`, `pruned_universe.parquet`,
-  `lineup_grades.parquet`
+  `lineup_grades.parquet`, `field_sample.csv`, `lineup_grades_top1000.csv`

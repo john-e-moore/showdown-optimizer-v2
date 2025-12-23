@@ -7,6 +7,26 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
+_DEBUG_LOG_PATH = "/home/john/showdown-optimizer-v2/.cursor/debug.log"
+
+
+def _dbg_log(*, run_id: str, hypothesis_id: str, location: str, message: str, data: Dict[str, Any]) -> None:
+    """Append one NDJSON debug line. Best-effort; never raises."""
+    try:
+        payload = {
+            "sessionId": "debug-session",
+            "runId": run_id,
+            "hypothesisId": hypothesis_id,
+            "location": location,
+            "message": message,
+            "data": data,
+            "timestamp": int(__import__("time").time() * 1000),
+        }
+        with open(_DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    except Exception:
+        return
+
 
 @dataclass(frozen=True)
 class ContestMeta:
@@ -58,22 +78,27 @@ def _expand_payouts(payouts: List[Dict[str, Any]], *, contest_size: int) -> List
 def _extract_meta(payload: Dict[str, Any], *, contest_id: str, source: str) -> ContestMeta:
     # Try a few common shapes: direct contest object or wrapped
     obj = payload
-    for k in ["contest", "data", "result"]:
+    for k in ["contestDetail", "contest", "data", "result"]:
         if isinstance(obj.get(k), dict):
             obj = obj[k]
             break
 
     contest_size = (
-        _coerce_int(obj.get("contestSize"))
+        _coerce_int(obj.get("maximumEntries"))
+        or _coerce_int(obj.get("contestSize"))
         or _coerce_int(obj.get("contest_size"))
         or _coerce_int(obj.get("entries"))
         or _coerce_int(obj.get("size"))
     )
     entry_fee = _coerce_float(obj.get("entryFee")) or _coerce_float(obj.get("entry_fee"))
-    max_entries = _coerce_int(obj.get("maxEntries")) or _coerce_int(obj.get("max_entries"))
+    max_entries = (
+        _coerce_int(obj.get("maximumEntriesPerUser"))
+        or _coerce_int(obj.get("maxEntries"))
+        or _coerce_int(obj.get("max_entries"))
+    )
 
     payouts_raw = None
-    for k in ["payouts", "payout", "payoutStructure", "payout_structure"]:
+    for k in ["payouts", "payout", "payoutStructure", "payout_structure", "payoutSummary"]:
         v = obj.get(k)
         if isinstance(v, list):
             payouts_raw = v
@@ -82,7 +107,49 @@ def _extract_meta(payload: Dict[str, Any], *, contest_id: str, source: str) -> C
             payouts_raw = v["payouts"]
             break
 
+    # DK contestDetail payloads often expose payouts as payoutSummary tiers:
+    # [{minPosition, maxPosition, payoutDescriptions:[{value:...}, ...]}, ...]
+    if payouts_raw is not None and isinstance(payouts_raw, list) and payouts_raw and isinstance(payouts_raw[0], dict):
+        if ("minPosition" in payouts_raw[0]) or ("maxPosition" in payouts_raw[0]) or ("payoutDescriptions" in payouts_raw[0]):
+            tiers = payouts_raw
+            normalized: List[Dict[str, Any]] = []
+            for t in tiers:
+                if not isinstance(t, dict):
+                    continue
+                descs = t.get("payoutDescriptions")
+                amount = None
+                if isinstance(descs, list) and descs and isinstance(descs[0], dict):
+                    amount = descs[0].get("value") or descs[0].get("amount") or descs[0].get("payout")
+                normalized.append(
+                    {
+                        "minRank": t.get("minRank") or t.get("minPosition") or t.get("min_rank") or t.get("rank_min"),
+                        "maxRank": t.get("maxRank") or t.get("maxPosition") or t.get("max_rank") or t.get("rank_max"),
+                        "amount": t.get("amount") or t.get("payout") or t.get("value") or amount,
+                    }
+                )
+            payouts_raw = normalized
+
     if contest_size is None or entry_fee is None or max_entries is None or payouts_raw is None:
+        # #region agent log
+        _dbg_log(
+            run_id="pre-fix",
+            hypothesis_id="H2",
+            location="src/dfs_opt/io/dk_api.py:_extract_meta",
+            message="meta_parse_failed",
+            data={
+                "contest_id": str(contest_id),
+                "source": str(source),
+                "top_keys": sorted(list(payload.keys()))[:50],
+                "contest_keys": sorted(list(obj.keys()))[:50],
+                "contest_size": contest_size,
+                "entry_fee": entry_fee,
+                "max_entries": max_entries,
+                "has_payouts_raw": payouts_raw is not None,
+                "errorStatus_type": type(payload.get("errorStatus")).__name__,
+                "contestDetail_type": type(payload.get("contestDetail")).__name__,
+            },
+        )
+        # #endregion agent log
         raise ValueError(
             "Unable to parse contest metadata from DK payload. "
             f"contest_id={contest_id} source={source} top_keys={sorted(payload.keys())} "
@@ -92,6 +159,23 @@ def _extract_meta(payload: Dict[str, Any], *, contest_id: str, source: str) -> C
     payout_table = _expand_payouts(list(payouts_raw), contest_size=int(contest_size))
     if len(payout_table) != int(contest_size):
         raise ValueError(f"Invalid payout table length={len(payout_table)} contest_size={contest_size}")
+
+    # #region agent log
+    _dbg_log(
+        run_id="pre-fix",
+        hypothesis_id="H2",
+        location="src/dfs_opt/io/dk_api.py:_extract_meta",
+        message="meta_parse_ok",
+        data={
+            "contest_id": str(contest_id),
+            "contest_size": int(contest_size),
+            "entry_fee": float(entry_fee),
+            "max_entries": int(max_entries),
+            "payout_table_len": int(len(payout_table)),
+            "payout_rank1": float(payout_table[0]) if payout_table else None,
+        },
+    )
+    # #endregion agent log
 
     return ContestMeta(
         contest_id=str(contest_id),
@@ -130,11 +214,42 @@ class DkApiClient:
         """
         cid = str(contest_id)
         cache_path = self._cache_path(cid)
+        # #region agent log
+        _dbg_log(
+            run_id="pre-fix",
+            hypothesis_id="H3",
+            location="src/dfs_opt/io/dk_api.py:DkApiClient.fetch_contest_json",
+            message="fetch_contest_json_start",
+            data={
+                "contest_id": cid,
+                "base_url": self.base_url,
+                "cache_exists": bool(cache_path.exists()),
+                "cache_path": str(cache_path),
+            },
+        )
+        # #endregion agent log
         if cache_path.exists():
-            return json.loads(cache_path.read_text(encoding="utf-8"))
+            payload = json.loads(cache_path.read_text(encoding="utf-8"))
+            # #region agent log
+            _dbg_log(
+                run_id="pre-fix",
+                hypothesis_id="H3",
+                location="src/dfs_opt/io/dk_api.py:DkApiClient.fetch_contest_json",
+                message="fetch_contest_json_cache_hit",
+                data={
+                    "contest_id": cid,
+                    "payload_type": type(payload).__name__,
+                    "top_keys": (sorted(list(payload.keys()))[:50] if isinstance(payload, dict) else ["<non-dict>"]),
+                    "has_errorStatus": bool(isinstance(payload, dict) and payload.get("errorStatus") is not None),
+                },
+            )
+            # #endregion agent log
+            return payload
 
         # Candidate endpoints (best-effort); override base_url if needed.
         candidates = [
+            # Preferred public endpoint format (explicit JSON)
+            f"{self.base_url}/contests/v1/contests/{cid}?format=json",
             f"{self.base_url}/contest/v1/contest/{cid}",
             f"{self.base_url}/contest/v1/contests/{cid}",
             f"{self.base_url}/contest/detail/v1/contests/{cid}",
@@ -146,6 +261,20 @@ class DkApiClient:
             try:
                 with httpx.Client(timeout=self.timeout_s, headers=self.headers, follow_redirects=True) as client:
                     resp = client.get(url)
+                # #region agent log
+                _dbg_log(
+                    run_id="pre-fix",
+                    hypothesis_id="H1",
+                    location="src/dfs_opt/io/dk_api.py:DkApiClient.fetch_contest_json",
+                    message="candidate_response",
+                    data={
+                        "contest_id": cid,
+                        "url": url,
+                        "status_code": int(resp.status_code),
+                        "content_type": str(resp.headers.get("content-type", ""))[:200],
+                    },
+                )
+                # #endregion agent log
                 if resp.status_code != 200:
                     continue
                 ctype = resp.headers.get("content-type", "")
@@ -153,6 +282,21 @@ class DkApiClient:
                     # Some endpoints return HTML; skip those
                     continue
                 payload = resp.json()
+                # #region agent log
+                _dbg_log(
+                    run_id="pre-fix",
+                    hypothesis_id="H1",
+                    location="src/dfs_opt/io/dk_api.py:DkApiClient.fetch_contest_json",
+                    message="candidate_payload_shape",
+                    data={
+                        "contest_id": cid,
+                        "url": url,
+                        "payload_type": type(payload).__name__,
+                        "top_keys": (sorted(list(payload.keys()))[:50] if isinstance(payload, dict) else ["<non-dict>"]),
+                        "has_errorStatus": bool(isinstance(payload, dict) and payload.get("errorStatus") is not None),
+                    },
+                )
+                # #endregion agent log
                 cache_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
                 return payload
             except Exception as e:  # pragma: no cover (network-dependent)

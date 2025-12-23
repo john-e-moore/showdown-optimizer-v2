@@ -864,7 +864,7 @@ def run_contest_pipeline(config: ContestConfig) -> Dict[str, Any]:
         t0 = time.perf_counter()
 
         from dfs_opt.io.dkentries import read_dkentries  # noqa: WPS433
-        from dfs_opt.io.dk_api import DkApiClient  # noqa: WPS433
+        from dfs_opt.io.dk_api import DkApiClient, _dbg_log  # noqa: WPS433
         from dfs_opt.simulation.contest_sim import (  # noqa: WPS433
             build_pruned_universe,
             sample_field_counts,
@@ -891,6 +891,15 @@ def run_contest_pipeline(config: ContestConfig) -> Dict[str, Any]:
             raise ValueError("lineup_utilities contains non-finite probabilities")
 
         for contest_id in contests["contest_id"].astype(str).tolist():
+            # #region agent log
+            _dbg_log(
+                run_id="pre-fix",
+                hypothesis_id="H4",
+                location="src/dfs_opt/pipelines/contest.py:run_contest_pipeline",
+                message="contest_id_from_dkentries",
+                data={"contest_id": str(contest_id), "len": len(str(contest_id)), "is_digit": str(contest_id).isdigit()},
+            )
+            # #endregion agent log
             meta = dk_api.fetch_contest_meta(contest_id)
             n_user = int((dkentries.entries["contest_id"].astype(str) == str(contest_id)).sum())
             n_field = int(meta.contest_size) - n_user
@@ -1075,7 +1084,81 @@ def run_contest_pipeline(config: ContestConfig) -> Dict[str, Any]:
         step_logger.info("Finished step: duration_s=%.3f", time.perf_counter() - t0)
 
         # -------------------------
-        # 08. write_outputs (run manifest)
+        # 08. export_contest_csvs (human-readable CSVs next to parquet)
+        # -------------------------
+        step = "08_export_contest_csvs"
+        step_logger = get_step_logger(logger, step=step)
+        step_logger.info("Starting step")
+        t0 = time.perf_counter()
+
+        from dfs_opt.io.contest_exports import export_contest_csvs  # noqa: WPS433
+
+        lineups_enriched_path = writer.run_dir / "lineups_enriched.parquet"
+        export_rows: List[Dict[str, Any]] = []
+        export_outputs: List[Tuple[str, str, str]] = []
+
+        for r in per_contest_rows:
+            cid = str(r["contest_id"])
+            contest_dir = contests_dir / cid
+
+            export_res = export_contest_csvs(
+                contest_id=cid,
+                contest_dir=contest_dir,
+                players_parquet=players_path,
+                lineups_enriched_parquet=lineups_enriched_path,
+                top_n=1000,
+            )
+
+            # Add to run manifest outputs for easier discovery / download.
+            field_chk = sha256_file(str(export_res.field_csv))
+            grades_chk = sha256_file(str(export_res.grades_top_csv))
+
+            run_outputs.append(
+                ManifestIO(
+                    path=str(export_res.field_csv),
+                    checksum_sha256=field_chk,
+                    logical_name=f"contests/{cid}/field_sample.csv",
+                )
+            )
+            run_outputs.append(
+                ManifestIO(
+                    path=str(export_res.grades_top_csv),
+                    checksum_sha256=grades_chk,
+                    logical_name=f"contests/{cid}/lineup_grades_top1000.csv",
+                )
+            )
+
+            export_outputs.append((str(export_res.field_csv), field_chk, f"contests/{cid}/field_sample.csv"))
+            export_outputs.append(
+                (str(export_res.grades_top_csv), grades_chk, f"contests/{cid}/lineup_grades_top1000.csv")
+            )
+
+            export_rows.append(
+                {
+                    "contest_id": cid,
+                    "n_field_unique": int(export_res.n_field_unique),
+                    "n_top": int(export_res.n_top),
+                    "field_csv": str(export_res.field_csv),
+                    "grades_top_csv": str(export_res.grades_top_csv),
+                }
+            )
+
+        step08_df = pd.DataFrame(export_rows)
+        writer.write_step(
+            step_idx=8,
+            step_name="export_contest_csvs",
+            df_in=None,
+            df_out=step08_df.head(200) if len(step08_df) else pd.DataFrame({"note": ["no contests exported"]}),
+            inputs=[],
+            outputs=export_outputs,
+            metrics={"num_contests": int(len(step08_df))},
+            persist_parquet=config.persist_step_outputs,
+        )
+        row_counts_by_step[step] = {"row_count_in": int(len(per_contest_rows)), "row_count_out": int(len(step08_df))}
+        step_logger.info("Finished step: duration_s=%.3f", time.perf_counter() - t0)
+
+        # -------------------------
+        # 09. write_outputs (run manifest)
         # -------------------------
         finished_at = utc_now()
         run_manifest = RunManifest(
