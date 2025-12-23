@@ -20,6 +20,8 @@ class SabersimColumns:
     proj_col: str = "SS Proj"
     own_col: str = "My Own"
     minutes_col: Optional[str] = "Min"
+    dfs_id_col: Optional[str] = "DFS ID"
+    dk_std_col: Optional[str] = "dk_std"
 
 
 def parse_sabersim_showdown_csv(path: Path, *, cols: SabersimColumns = SabersimColumns()) -> Tuple[pd.DataFrame, Dict]:
@@ -62,6 +64,17 @@ def parse_sabersim_showdown_csv(path: Path, *, cols: SabersimColumns = SabersimC
         out["minutes"] = pd.to_numeric(df[cols.minutes_col], errors="coerce")
     else:
         out["minutes"] = pd.NA
+
+    # Optional columns used by Pipeline B grading + DKEntries formatting
+    if cols.dfs_id_col and cols.dfs_id_col in df.columns:
+        out["dfs_id"] = pd.to_numeric(df[cols.dfs_id_col], errors="coerce").astype("Int64")
+    else:
+        out["dfs_id"] = pd.NA
+
+    if cols.dk_std_col and cols.dk_std_col in df.columns:
+        out["dk_std"] = pd.to_numeric(df[cols.dk_std_col], errors="coerce")
+    else:
+        out["dk_std"] = pd.NA
 
     before = len(out)
     out = out.dropna(subset=["name_norm", "salary", "proj_points", "own"]).copy()

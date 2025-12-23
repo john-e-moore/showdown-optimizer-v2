@@ -15,6 +15,8 @@ src/dfs_opt/features/correlation.py
 src/dfs_opt/features/enrich_showdown.py
 src/dfs_opt/features/optimal.py
 src/dfs_opt/io/artifacts.py
+src/dfs_opt/io/dk_api.py
+src/dfs_opt/io/dkentries.py
 src/dfs_opt/io/inventory.py
 src/dfs_opt/lineup_pool/__init__.py
 src/dfs_opt/lineup_pool/enrich_universe_showdown.py
@@ -34,6 +36,10 @@ src/dfs_opt/resources/__init__.py
 src/dfs_opt/resources/gpp_contests.yaml
 src/dfs_opt/share_model/__init__.py
 src/dfs_opt/share_model/softmax_share.py
+src/dfs_opt/simulation/__init__.py
+src/dfs_opt/simulation/contest_sim.py
+src/dfs_opt/simulation/outcomes.py
+src/dfs_opt/simulation/payouts.py
 src/dfs_opt/utils/__init__.py
 src/dfs_opt/utils/git.py
 src/dfs_opt/utils/hashing.py
@@ -53,4 +59,5 @@ tests/test_lineup_universe_enriched.py
 tests/test_lineup_universe_showdown.py
 tests/test_optimal_showdown.py
 tests/test_sabersim_parsing.py
+tests/test_softmax_share_model.py
 tests/test_training_pipeline_artifacts.py

@@ -801,3 +801,115 @@ def dense_logZ_and_expX(X: np.ndarray, theta: np.ndarray) -> Tuple[float, np.nda
     return logZ, expX
 
 
+def _load_theta_json(theta_json_path: Path, *, schema: FeatureSchema) -> np.ndarray:
+    payload = json.loads(Path(theta_json_path).read_text(encoding="utf-8"))
+    th = payload.get("theta")
+    if not isinstance(th, dict):
+        raise ValueError(f"{theta_json_path}: invalid theta payload (missing 'theta' mapping)")
+    # Accept payload param order if present, else use schema.param_names()
+    param_names = payload.get("feature_schema", {}).get("param_names")
+    if not isinstance(param_names, list) or not param_names:
+        param_names = schema.param_names()
+
+    theta = np.zeros(schema.num_params(), dtype=np.float64)
+    name_to_idx = {n: i for i, n in enumerate(schema.param_names())}
+    missing = 0
+    for n in param_names:
+        if n not in name_to_idx:
+            continue
+        v = th.get(n)
+        if v is None:
+            missing += 1
+            continue
+        theta[name_to_idx[n]] = float(v)
+    if missing:
+        # ok: missing params treated as 0
+        pass
+    return theta
+
+
+def score_universe_with_theta(
+    *,
+    lineups_enriched_parquet: Path,
+    theta_json_path: Path,
+    out_parquet_path: Path,
+    schema: Optional[FeatureSchema] = None,
+) -> Dict[str, Any]:
+    """
+    Apply a fitted softmax share model to a slate lineup universe parquet.
+
+    Writes `out_parquet_path` with:
+      - lineup_id (row index)
+      - u (utility)
+      - logp
+      - p
+    """
+    if schema is None:
+        schema = FeatureSchema()
+
+    theta = _load_theta_json(Path(theta_json_path), schema=schema)
+    tt = _unpack_theta(theta, schema)
+
+    cols = [
+        *schema.continuous,
+        "stack_code",
+        "cpt_archetype",
+        "salary_left_bin",
+        "pct_proj_gap_to_optimal_bin",
+    ]
+    tbl = pq.read_table(Path(lineups_enriched_parquet), columns=cols, memory_map=True)
+    n = int(tbl.num_rows)
+    if n <= 0:
+        raise ValueError(f"{lineups_enriched_parquet}: empty universe parquet")
+
+    cont = np.column_stack([_safe_float_array(tbl[c]) for c in schema.continuous]).astype(np.float64, copy=False)
+    stack_code = np.asarray(tbl["stack_code"].to_numpy(zero_copy_only=False), dtype=np.int64)
+    cpt_code, m1 = _dict_to_codes(tbl["cpt_archetype"], canonical_levels=schema.cpt_archetype_levels)
+    salary_code, m2 = _dict_to_codes(tbl["salary_left_bin"], canonical_levels=schema.salary_left_bin_levels)
+    gap_code, m3 = _dict_to_codes(
+        tbl["pct_proj_gap_to_optimal_bin"], canonical_levels=schema.pct_gap_bin_levels
+    )
+
+    u = (
+        float(tt["intercept"])
+        + cont @ tt["cont"].astype(np.float64)
+        + tt["cpt"][cpt_code.astype(np.int64)]
+        + tt["stack"][stack_code.astype(np.int64)]
+        + tt["salary"][salary_code.astype(np.int64)]
+        + tt["gap"][gap_code.astype(np.int64)]
+    ).astype(np.float64, copy=False)
+
+    logZ = float(logsumexp(u))
+    logp = (u - logZ).astype(np.float64, copy=False)
+    p = np.exp(logp).astype(np.float64, copy=False)
+
+    out_tbl = pa.table(
+        {
+            "lineup_id": pa.array(np.arange(n, dtype=np.int64), type=pa.int64()),
+            "u": pa.array(u, type=pa.float64()),
+            "logp": pa.array(logp, type=pa.float64()),
+            "p": pa.array(p, type=pa.float64()),
+        }
+    )
+    pq.write_table(out_tbl, Path(out_parquet_path), compression="zstd")
+
+    # Metrics: entropy and top-k mass
+    p64 = p.astype(np.float64, copy=False)
+    entropy = float(-np.sum(np.where(p64 > 0, p64 * np.log(p64), 0.0)))
+    order = np.argsort(p64)[::-1]
+    topk = [10, 100, 1000]
+    topk_mass = {f"top_{k}_mass": float(np.sum(p64[order[: min(k, n)]])) for k in topk}
+
+    return {
+        "n_lineups": int(n),
+        "logZ": float(logZ),
+        "entropy": float(entropy),
+        **topk_mass,
+        **{f"cpt_archetype.{k}": v for k, v in m1.items()},
+        **{f"salary_left_bin.{k}": v for k, v in m2.items()},
+        **{f"pct_gap_bin.{k}": v for k, v in m3.items()},
+        # lightweight preview of p for step preview
+        "preview_p": p64[order[: min(200, n)]].tolist(),
+    }
+
+

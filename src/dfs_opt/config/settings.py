@@ -86,6 +86,8 @@ class ContestConfig:
     # Required for lineup-universe feature enrichment (avg_corr).
     corr_matrix_csv: Path
     slate_id: str
+    # DKEntries CSV to fill (Pipeline B full run).
+    dkentries_csv: Path | None = None
     sport: str = "nba"
 
     artifacts_root: Path = Path("artifacts")
@@ -101,5 +103,31 @@ class ContestConfig:
     # feature knobs (match TrainingConfig defaults)
     captain_tiers: List[Tuple[int, str]] = field(default_factory=lambda: SegmentDefinitions().captain_tiers)
     own_log_eps: float = 1e-6
+
+    # --- share model / theta ---
+    # For now, allow passing a direct theta.json path (may be overridden per contest later).
+    theta_json: Path | None = None
+    share_models_root: Path | None = None
+    gpp_bins_yaml: Path | None = None
+
+    # --- DK API ---
+    dk_api_base_url: str = "https://api.draftkings.com"
+    dk_api_timeout_s: float = 20.0
+    dk_api_headers: Optional[dict[str, str]] = None
+
+    # --- pruning / field sampling ---
+    prune_mass_threshold: float = 0.9995
+    dirichlet_alpha: Optional[float] = None
+
+    # --- grading ---
+    num_sims: int = 2000
+    # std_mode: \"dk_std\" uses projection std column when available, else fallback rule.
+    std_mode: str = "dk_std_or_fallback"
+    std_scale: float = 1.0
+    tie_break: str = "lineup_id"
+
+    # --- dkentries output ---
+    # \"name_id\" writes \"Name (ID)\" using the projections' DFS ID.
+    dkentries_output_format: str = "name_id"
 
 

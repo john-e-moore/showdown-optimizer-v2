@@ -101,6 +101,7 @@ def contest_config_from_dict(data: Dict[str, Any]) -> ContestConfig:
     return ContestConfig(
         projection_csv=Path(data["projection_csv"]),
         corr_matrix_csv=Path(data["corr_matrix_csv"]),
+        dkentries_csv=(None if data.get("dkentries_csv") is None else Path(data["dkentries_csv"])),
         slate_id=str(data["slate_id"]),
         sport=str(data.get("sport", "nba")),
         artifacts_root=Path(data.get("artifacts_root", "artifacts")),
@@ -112,6 +113,19 @@ def contest_config_from_dict(data: Dict[str, Any]) -> ContestConfig:
         max_players=(None if data.get("max_players") is None else int(data.get("max_players"))),
         captain_tiers=[(int(t[0]), str(t[1])) for t in (data.get("captain_tiers") or SegmentDefinitions().captain_tiers)],
         own_log_eps=float(data.get("own_log_eps", 1e-6)),
+        theta_json=(None if data.get("theta_json") is None else Path(data["theta_json"])),
+        share_models_root=(None if data.get("share_models_root") is None else Path(data["share_models_root"])),
+        gpp_bins_yaml=(None if data.get("gpp_bins_yaml") is None else Path(data["gpp_bins_yaml"])),
+        dk_api_base_url=str(data.get("dk_api_base_url", ContestConfig.dk_api_base_url)),
+        dk_api_timeout_s=float(data.get("dk_api_timeout_s", 20.0)),
+        dk_api_headers=(None if data.get("dk_api_headers") is None else dict(data["dk_api_headers"])),
+        prune_mass_threshold=float(data.get("prune_mass_threshold", 0.9995)),
+        dirichlet_alpha=(None if data.get("dirichlet_alpha") is None else float(data["dirichlet_alpha"])),
+        num_sims=int(data.get("num_sims", 2000)),
+        std_mode=str(data.get("std_mode", "dk_std_or_fallback")),
+        std_scale=float(data.get("std_scale", 1.0)),
+        tie_break=str(data.get("tie_break", "lineup_id")),
+        dkentries_output_format=str(data.get("dkentries_output_format", "name_id")),
     )
 
 
@@ -120,6 +134,7 @@ def apply_contest_cli_overrides(
     *,
     projection_csv: Optional[Path] = None,
     corr_matrix_csv: Optional[Path] = None,
+    dkentries_csv: Optional[Path] = None,
     slate_id: Optional[str] = None,
     sport: Optional[str] = None,
     artifacts_root: Optional[Path] = None,
@@ -129,11 +144,24 @@ def apply_contest_cli_overrides(
     salary_cap: Optional[int] = None,
     min_proj_points: Optional[float] = None,
     max_players: Optional[int] = None,
+    theta_json: Optional[Path] = None,
+    share_models_root: Optional[Path] = None,
+    gpp_bins_yaml: Optional[Path] = None,
+    dk_api_base_url: Optional[str] = None,
+    dk_api_timeout_s: Optional[float] = None,
+    prune_mass_threshold: Optional[float] = None,
+    dirichlet_alpha: Optional[float] = None,
+    num_sims: Optional[int] = None,
+    std_mode: Optional[str] = None,
+    std_scale: Optional[float] = None,
+    tie_break: Optional[str] = None,
+    dkentries_output_format: Optional[str] = None,
 ) -> ContestConfig:
     return replace(
         cfg,
         projection_csv=projection_csv if projection_csv is not None else cfg.projection_csv,
         corr_matrix_csv=corr_matrix_csv if corr_matrix_csv is not None else cfg.corr_matrix_csv,
+        dkentries_csv=dkentries_csv if dkentries_csv is not None else cfg.dkentries_csv,
         slate_id=slate_id if slate_id is not None else cfg.slate_id,
         sport=sport if sport is not None else cfg.sport,
         artifacts_root=artifacts_root if artifacts_root is not None else cfg.artifacts_root,
@@ -145,6 +173,22 @@ def apply_contest_cli_overrides(
         salary_cap=salary_cap if salary_cap is not None else cfg.salary_cap,
         min_proj_points=min_proj_points if min_proj_points is not None else cfg.min_proj_points,
         max_players=max_players if max_players is not None else cfg.max_players,
+        theta_json=theta_json if theta_json is not None else cfg.theta_json,
+        share_models_root=share_models_root if share_models_root is not None else cfg.share_models_root,
+        gpp_bins_yaml=gpp_bins_yaml if gpp_bins_yaml is not None else cfg.gpp_bins_yaml,
+        dk_api_base_url=dk_api_base_url if dk_api_base_url is not None else cfg.dk_api_base_url,
+        dk_api_timeout_s=dk_api_timeout_s if dk_api_timeout_s is not None else cfg.dk_api_timeout_s,
+        prune_mass_threshold=prune_mass_threshold
+        if prune_mass_threshold is not None
+        else cfg.prune_mass_threshold,
+        dirichlet_alpha=dirichlet_alpha if dirichlet_alpha is not None else cfg.dirichlet_alpha,
+        num_sims=num_sims if num_sims is not None else cfg.num_sims,
+        std_mode=std_mode if std_mode is not None else cfg.std_mode,
+        std_scale=std_scale if std_scale is not None else cfg.std_scale,
+        tie_break=tie_break if tie_break is not None else cfg.tie_break,
+        dkentries_output_format=dkentries_output_format
+        if dkentries_output_format is not None
+        else cfg.dkentries_output_format,
     )
 
 
