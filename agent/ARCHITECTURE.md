@@ -7,7 +7,9 @@ Two clear, composable pipelines with strict boundaries:
 Raw projections + contest standings/exports → enriched entry table → learned target distributions.
 
 2) **Contest execution pipeline**  
-Raw projections + correlations + DKEntries template → candidate pool → reweighting → diversified lineups → filled DKEntries.
+Raw projections + correlations + DKEntries CSV → enumerate slate lineup universe → compute softmax
+utilities/shares from `theta.json` → simulate contest fields → prune → grade (ROI/top-% rates) →
+assign unique top-X lineups per contest → filled DKEntries.
 
 ## Required directory structure
 ```
@@ -22,9 +24,10 @@ Raw projections + correlations + DKEntries template → candidate pool → rewei
 │     ├─ parsing/             # DK lineup parsing, Sabersim parsing
 │     ├─ features/            # feature engineering (salary, stacks, archetypes, gaps)
 │     ├─ distributions/       # fit/validate target distributions
-│     ├─ lineup_pool/         # candidate generation (optimizer wrappers, randomness)
-│     ├─ reweighting/         # raking / max-entropy reweighting to targets
+│     ├─ lineup_pool/         # (optional) candidate generation helpers (not required for theta-based field sim)
+│     ├─ reweighting/         # (optional) max-entropy / raking utilities (not used in Pipeline B for now)
 │     ├─ simulation/          # score sims, contest sims, ROI, duplication-aware EV
+│     ├─ share_model/         # softmax lineup-share model (train + apply theta)
 │     ├─ cli/                 # Typer/argparse entrypoints
 │     └─ utils/               # small shared helpers (pure functions only)
 ├─ tests/

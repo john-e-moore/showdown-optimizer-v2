@@ -11,10 +11,9 @@ Suggested slice order:
 2. Feature engineering (`features/`) + tests
 3. Training pipeline orchestration (`pipelines/training.py`)
 4. Distribution fitting (`distributions/`)
-5. Candidate pool generation (`lineup_pool/`)
-6. Reweighting (`reweighting/`)
-7. Simulation (`simulation/`)
-8. DKEntries writer (`io/`)
+5. Share model (apply `theta.json` to compute utilities/shares) (`share_model/`)
+6. Contest simulation + grading (field sampling, pruning, ROI/top-% rates) (`simulation/`)
+7. DKEntries writer / assignment (`io/`)
 
 ## 2) Prompt template for Cursor tasks
 When asking Cursor to implement something, include:

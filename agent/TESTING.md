@@ -16,7 +16,8 @@
 
 3) **Integration tests (optional early, required later)**
 - training pipeline end-to-end on small fixtures
-- contest pipeline end-to-end with tiny candidate pool (e.g., 200 lineups)
+- contest pipeline end-to-end with a tiny enumerated universe (e.g., 200 lineups) + `theta.json` to
+  compute shares, then one-contest field sampling + pruning + grading
 
 ## Fixtures
 - Put sanitized sample CSVs in `tests/fixtures/`.

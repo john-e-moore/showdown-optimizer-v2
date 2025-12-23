@@ -28,6 +28,39 @@ This file defines canonical schemas. Any new column must be documented here.
   - `rank` (int)
   - `winnings` (float)
 
+## 2b) Raw Sabersim Correlation Matrix (input)
+**Name:** `*_corr_matrix.csv` (example: `NBA_slate1_corr_matrix.csv`)
+
+This file is expected to be a square correlation matrix over the slate player pool.
+
+- Required columns:
+  - `Column1` (string): player name for the row
+  - One column per player (string column name matches player name)
+- Required invariants:
+  - The set of column names (excluding `Column1`) matches the set of `Column1` values
+  - Diagonal entries are 1.0 (or very close)
+  - Values are finite floats in [-1, 1]
+
+## 2c) DraftKings DKEntries CSV (input)
+**Name:** `DKEntries.csv`
+
+This is the user’s entry template used by Pipeline B. It may contain one or many contests; Pipeline B
+groups rows by `contest_id` and fills each contest independently.
+
+- Required columns (canonical names):
+  - `entry_id` (string or int) — from DK (`Entry ID` / `EntryId`)
+  - `contest_id` (string or int) — from DK (`Contest ID` / `ContestId`)
+  - Showdown roster slots (exact column names vary by export; Pipeline B normalizes):
+    - `cpt` (string) — captain slot (`CPT` / `Captain`)
+    - `util1`..`util5` (string) — utility slots (commonly `UTIL`, `UTIL.1`… or `UTIL1`..`UTIL5`)
+- Optional passthrough columns (preserved as-is):
+  - `contest_name`, `entry_fee`, `draft_group_id`, `draft_group`, etc.
+
+Notes:
+- Slot values are typically player-identifying strings in DK’s upload format. Pipeline B must be
+  consistent with the chosen write format (names vs `Name (ID)`), and name matching must be
+  compatible with the projections/correlation inputs for the slate.
+
 ## 3) Parsed Lineup (intermediate)
 **Name:** `ParsedLineup`
 - `cpt_name` (string)
@@ -231,3 +264,15 @@ Minimum keys:
 Sidecar files expected in the same folder:
 - `preview.csv`
 - `schema.json`
+
+## 8) DKEntries filled output (Pipeline B output)
+**Name:** `DKEntries_filled.csv`
+
+This is the DKEntries CSV after assignment of contest-specific lineups.
+
+- Output rules:
+  - Row count is identical to the input DKEntries CSV.
+  - All non-slot columns are preserved (passthrough).
+  - Slot columns (`cpt`, `util1`..`util5`) are filled for every row.
+  - Within each `contest_id`, assigned lineups are **unique** up to the number of entries for that
+    contest (top-X selection where \(X=\#\) entries for that contest).

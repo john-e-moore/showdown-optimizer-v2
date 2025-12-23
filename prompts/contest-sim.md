@@ -92,7 +92,8 @@ For each simulation draw \(t=1..T\):
 - Apply the contest payout table to ranks
 - Split payouts across duplicate lineups (each duplicate gets \( \text{payout(rank)} / \text{dup\_count(lineup)} \))
 
-This produces per-lineup distributions of winnings for the lineups we care about (e.g., the candidate pool or a user-selected set).
+This produces per-lineup distributions of winnings for the lineups we care about (e.g., the pruned
+universe or a user-selected set).
 
 ### 4.2 Metrics
 Let `entry_fee` be the contest entry fee. For a lineup \(L\), across simulations \(t=1..T\):

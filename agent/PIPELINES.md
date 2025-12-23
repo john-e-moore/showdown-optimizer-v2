@@ -71,14 +71,20 @@ Step names and ordering must remain stable; if you change them, update this docu
 
 ## Pipeline B: Contest Execution (Build + Fill DKEntries)
 
-**Purpose:** Given projections + correlations + a DKEntries template, generate diversified lineups,
-simulate outcomes, and fill entries with lineups.
+**Purpose:** Given projections + correlations + a DKEntries CSV, generate the slate lineup universe,
+compute lineup shares from a trained softmax lineup-share model (`theta.json`), simulate each contest
+field (one contest or all contests in DKEntries), prune to a reasonable subset, grade lineups (ROI +
+top-% finish rates), and fill DKEntries with the best contest-specific lineups.
 
 ### Inputs
-- Sabersim projections (raw)
-- Player correlation matrix (required if computing lineup-universe features like `avg_corr`; also required for sims)
-- DKEntries template CSV (your entries to fill)
-- (Optional) learned target distributions from Pipeline A
+- Sabersim projections CSV (raw)
+- Player correlation matrix (for `avg_corr` features and correlated outcome simulation)
+- DKEntries CSV (your entries to fill; may contain one or multiple contests)
+- Softmax lineup-share model output:
+  - `share_models/<gpp_category>/theta.json`
+
+**Note:** Pipeline B does **not** use target distributions to construct fields (for now). Fields are
+sampled directly from softmax-implied lineup shares.
 
 ### Steps
 00. **ingest**
@@ -87,54 +93,61 @@ simulate outcomes, and fill entries with lineups.
 01. **parse_projections**
 - Build canonical `players_flex`.
 
-02. **enumerate_lineup_universe** (optional early step)
+02. **enumerate_lineup_universe**
 - Enumerate all legal showdown lineups for the slate (CPT + 5 UTIL) under DK rules.
 - Outputs:
   - `players.parquet` (the indexed player table used for enumeration)
   - `lineups.parquet` (the full lineup universe, stored as slot indices)
-  - `lineups_enriched.parquet` (optional; if the run computes dup-model features)
   - `metadata.json` (schema, team mapping, counts, timings)
 - Metrics: num_players, num_lineups, stack distribution, kernel runtimes.
 
-03. **enrich_lineup_universe_features** (optional early step)
-- Compute per-lineup features used by the duplication/share model:
+03. **enrich_lineup_universe_features**
+- Compute per-lineup features required by the share model and simulations, e.g.:
   `own_score_logprod`, `own_max_log`, `own_min_log`, `avg_corr`, `cpt_archetype`,
   `salary_left_bin`, `pct_proj_gap_to_optimal`, `pct_proj_gap_to_optimal_bin`.
 - Outputs:
   - `lineups_enriched.parquet`
 - Metrics: `optimal_proj_points`, correlation matrix coverage.
 
-04. **build_candidate_pool**
-- Generate 50k–500k plausible lineups using optimizer “brains” (temperature/noise + constraints).
-- Artifacts:
-  - summary stats (salary_left histogram, stack pattern counts, captain archetype counts)
-  - small sample of lineups (preview)
+04. **compute_softmax_shares**
+- Load `theta.json`; compute per-lineup utility \(u(L)\) and softmax shares \(p(L)\) over the
+  slate universe (stable log-sum-exp).
+- Outputs:
+  - `lineup_utilities.parquet` (u, logp, p; keyed by lineup id/hash)
+- Metrics: share concentration (entropy), top-k cumulative mass.
 
-05. **base_weighting**
-- Assign base weight `q(L)` (e.g., exp(tau*proj - lambda*salary_left - penalties)).
-- Metrics: weight concentration (entropy), top-100 mass.
+05. **simulate_contests_from_dkentries**
+- For one contest (if specified) or for **each contest present in DKEntries**:
+  - Read contest parameters (N entries, entry fee, payout table)
+  - **Sample the contest field** by drawing N lineups with replacement from \(p(L)\)
+  - **Prune** the lineup universe for scoring (e.g., mass threshold; always force-include user
+    candidate lineups if scoring a provided set)
+- Outputs (per contest):
+  - `field_sample.parquet` (entry-level or `{lineup_id -> dup_count}`)
+  - `pruned_universe.parquet`
+- Metrics: implied duplication histogram, prune size, cumulative mass retained.
 
-06. **reweight_to_targets**
-- Rake weights to match:
-  - CPT/FLEX ownership targets
-  - salary_left bins, stack patterns, archetypes, gap bins (if provided)
-- Metrics: constraint error per target, number of iterations, convergence status.
-
-07. **sample_field**
-- Sample N entries from reweighted distribution **with replacement** (duplicates allowed).
-- Metrics: implied duplication histogram.
-
-08. **simulate_and_score**
-- Run correlated simulations → ROI/EV/top1% rates with payout splitting.
+06. **grade_lineups**
+- Run correlated outcome simulations; compute contest-aware winnings with payout splitting across
+  duplicates; produce:
+  - ROI
+  - top-% finish rates (e.g., 0.1%, 1%, 5%, 20%)
+- Outputs (per contest):
+  - `lineup_grades.parquet`
 - Metrics: runtime, sim count, stability diagnostics.
 
-09. **select_and_diversify_for_user_entries**
-- Select lineups for user DKEntries with diversification constraints (exposure caps, etc.).
-- Metrics: exposure summary table.
+07. **assign_best_lineups_to_entries**
+- For each contest, select **unique** top-X ROI lineups, where X is the number of DKEntries for
+  that contest, and assign them to the corresponding entries.
+- Outputs:
+  - `DKEntries_filled.csv`
+  - exposure/summary tables
 
-10. **write_outputs**
-- Write `DKEntries_filled.csv` plus run manifest.
+08. **write_outputs**
+- Write run + step manifests and artifacts for reproducibility.
 
 ### Outputs
 - `DKEntries_filled.csv`
-- optional: `candidate_pool.parquet`, `field_sample.parquet`, `sim_results.parquet`
+- `lineups.parquet`, `lineups_enriched.parquet`, `lineup_utilities.parquet`
+- per-contest artifacts (one folder per contest): `field_sample.parquet`, `pruned_universe.parquet`,
+  `lineup_grades.parquet`
