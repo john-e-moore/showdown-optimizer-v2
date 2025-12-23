@@ -7,27 +7,6 @@ from typing import Any, Dict, List, Optional
 
 import httpx
 
-_DEBUG_LOG_PATH = "/home/john/showdown-optimizer-v2/.cursor/debug.log"
-
-
-def _dbg_log(*, run_id: str, hypothesis_id: str, location: str, message: str, data: Dict[str, Any]) -> None:
-    """Append one NDJSON debug line. Best-effort; never raises."""
-    try:
-        payload = {
-            "sessionId": "debug-session",
-            "runId": run_id,
-            "hypothesisId": hypothesis_id,
-            "location": location,
-            "message": message,
-            "data": data,
-            "timestamp": int(__import__("time").time() * 1000),
-        }
-        with open(_DEBUG_LOG_PATH, "a", encoding="utf-8") as f:
-            f.write(json.dumps(payload, ensure_ascii=False) + "\n")
-    except Exception:
-        return
-
-
 @dataclass(frozen=True)
 class ContestMeta:
     contest_id: str
@@ -130,26 +109,6 @@ def _extract_meta(payload: Dict[str, Any], *, contest_id: str, source: str) -> C
             payouts_raw = normalized
 
     if contest_size is None or entry_fee is None or max_entries is None or payouts_raw is None:
-        # #region agent log
-        _dbg_log(
-            run_id="pre-fix",
-            hypothesis_id="H2",
-            location="src/dfs_opt/io/dk_api.py:_extract_meta",
-            message="meta_parse_failed",
-            data={
-                "contest_id": str(contest_id),
-                "source": str(source),
-                "top_keys": sorted(list(payload.keys()))[:50],
-                "contest_keys": sorted(list(obj.keys()))[:50],
-                "contest_size": contest_size,
-                "entry_fee": entry_fee,
-                "max_entries": max_entries,
-                "has_payouts_raw": payouts_raw is not None,
-                "errorStatus_type": type(payload.get("errorStatus")).__name__,
-                "contestDetail_type": type(payload.get("contestDetail")).__name__,
-            },
-        )
-        # #endregion agent log
         raise ValueError(
             "Unable to parse contest metadata from DK payload. "
             f"contest_id={contest_id} source={source} top_keys={sorted(payload.keys())} "
@@ -159,23 +118,6 @@ def _extract_meta(payload: Dict[str, Any], *, contest_id: str, source: str) -> C
     payout_table = _expand_payouts(list(payouts_raw), contest_size=int(contest_size))
     if len(payout_table) != int(contest_size):
         raise ValueError(f"Invalid payout table length={len(payout_table)} contest_size={contest_size}")
-
-    # #region agent log
-    _dbg_log(
-        run_id="pre-fix",
-        hypothesis_id="H2",
-        location="src/dfs_opt/io/dk_api.py:_extract_meta",
-        message="meta_parse_ok",
-        data={
-            "contest_id": str(contest_id),
-            "contest_size": int(contest_size),
-            "entry_fee": float(entry_fee),
-            "max_entries": int(max_entries),
-            "payout_table_len": int(len(payout_table)),
-            "payout_rank1": float(payout_table[0]) if payout_table else None,
-        },
-    )
-    # #endregion agent log
 
     return ContestMeta(
         contest_id=str(contest_id),
@@ -214,36 +156,8 @@ class DkApiClient:
         """
         cid = str(contest_id)
         cache_path = self._cache_path(cid)
-        # #region agent log
-        _dbg_log(
-            run_id="pre-fix",
-            hypothesis_id="H3",
-            location="src/dfs_opt/io/dk_api.py:DkApiClient.fetch_contest_json",
-            message="fetch_contest_json_start",
-            data={
-                "contest_id": cid,
-                "base_url": self.base_url,
-                "cache_exists": bool(cache_path.exists()),
-                "cache_path": str(cache_path),
-            },
-        )
-        # #endregion agent log
         if cache_path.exists():
             payload = json.loads(cache_path.read_text(encoding="utf-8"))
-            # #region agent log
-            _dbg_log(
-                run_id="pre-fix",
-                hypothesis_id="H3",
-                location="src/dfs_opt/io/dk_api.py:DkApiClient.fetch_contest_json",
-                message="fetch_contest_json_cache_hit",
-                data={
-                    "contest_id": cid,
-                    "payload_type": type(payload).__name__,
-                    "top_keys": (sorted(list(payload.keys()))[:50] if isinstance(payload, dict) else ["<non-dict>"]),
-                    "has_errorStatus": bool(isinstance(payload, dict) and payload.get("errorStatus") is not None),
-                },
-            )
-            # #endregion agent log
             return payload
 
         # Candidate endpoints (best-effort); override base_url if needed.
@@ -261,20 +175,6 @@ class DkApiClient:
             try:
                 with httpx.Client(timeout=self.timeout_s, headers=self.headers, follow_redirects=True) as client:
                     resp = client.get(url)
-                # #region agent log
-                _dbg_log(
-                    run_id="pre-fix",
-                    hypothesis_id="H1",
-                    location="src/dfs_opt/io/dk_api.py:DkApiClient.fetch_contest_json",
-                    message="candidate_response",
-                    data={
-                        "contest_id": cid,
-                        "url": url,
-                        "status_code": int(resp.status_code),
-                        "content_type": str(resp.headers.get("content-type", ""))[:200],
-                    },
-                )
-                # #endregion agent log
                 if resp.status_code != 200:
                     continue
                 ctype = resp.headers.get("content-type", "")
@@ -282,21 +182,6 @@ class DkApiClient:
                     # Some endpoints return HTML; skip those
                     continue
                 payload = resp.json()
-                # #region agent log
-                _dbg_log(
-                    run_id="pre-fix",
-                    hypothesis_id="H1",
-                    location="src/dfs_opt/io/dk_api.py:DkApiClient.fetch_contest_json",
-                    message="candidate_payload_shape",
-                    data={
-                        "contest_id": cid,
-                        "url": url,
-                        "payload_type": type(payload).__name__,
-                        "top_keys": (sorted(list(payload.keys()))[:50] if isinstance(payload, dict) else ["<non-dict>"]),
-                        "has_errorStatus": bool(isinstance(payload, dict) and payload.get("errorStatus") is not None),
-                    },
-                )
-                # #endregion agent log
                 cache_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
                 return payload
             except Exception as e:  # pragma: no cover (network-dependent)

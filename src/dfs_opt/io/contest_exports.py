@@ -76,12 +76,15 @@ def _enrich_lineups_for_ids(
     slots = lineups_enriched_df.iloc[ids.to_numpy()][
         ["cpt", "u1", "u2", "u3", "u4", "u5", "proj_points", "salary_used", "avg_corr"]
     ].copy()
+    # IMPORTANT: .iloc preserves the original index values from lineups_enriched_df (e.g. lineup ids),
+    # which can cause pandas to align Series by index when building the output DataFrame.
+    # Reset to RangeIndex to keep all output columns aligned by position.
+    slots = slots.reset_index(drop=True)
 
     def fmt_slot(col: str) -> pd.Series:
         idx = slots[col].astype(int).to_numpy()
         return pd.Series(nameid[idx])
-
-    out = pd.DataFrame(
+    return pd.DataFrame(
         {
             "lineup_id": ids.to_numpy(),
             "cpt": fmt_slot("cpt"),
@@ -95,7 +98,6 @@ def _enrich_lineups_for_ids(
             "avg_corr": pd.to_numeric(slots["avg_corr"], errors="coerce"),
         }
     )
-    return out
 
 
 def export_contest_csvs(

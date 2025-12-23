@@ -864,7 +864,7 @@ def run_contest_pipeline(config: ContestConfig) -> Dict[str, Any]:
         t0 = time.perf_counter()
 
         from dfs_opt.io.dkentries import read_dkentries  # noqa: WPS433
-        from dfs_opt.io.dk_api import DkApiClient, _dbg_log  # noqa: WPS433
+        from dfs_opt.io.dk_api import DkApiClient  # noqa: WPS433
         from dfs_opt.simulation.contest_sim import (  # noqa: WPS433
             build_pruned_universe,
             sample_field_counts,
@@ -891,15 +891,6 @@ def run_contest_pipeline(config: ContestConfig) -> Dict[str, Any]:
             raise ValueError("lineup_utilities contains non-finite probabilities")
 
         for contest_id in contests["contest_id"].astype(str).tolist():
-            # #region agent log
-            _dbg_log(
-                run_id="pre-fix",
-                hypothesis_id="H4",
-                location="src/dfs_opt/pipelines/contest.py:run_contest_pipeline",
-                message="contest_id_from_dkentries",
-                data={"contest_id": str(contest_id), "len": len(str(contest_id)), "is_digit": str(contest_id).isdigit()},
-            )
-            # #endregion agent log
             meta = dk_api.fetch_contest_meta(contest_id)
             n_user = int((dkentries.entries["contest_id"].astype(str) == str(contest_id)).sum())
             n_field = int(meta.contest_size) - n_user
