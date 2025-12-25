@@ -871,6 +871,15 @@ def run_contest_pipeline(config: ContestConfig) -> Dict[str, Any]:
         )
 
         dkentries = read_dkentries(Path(config.dkentries_csv))
+        try:
+            counts = dkentries.entries["contest_id"].astype(str).value_counts(dropna=False).to_dict()
+        except Exception:
+            counts = {}
+        step_logger.info(
+            "DKEntries parsed: num_entry_rows=%s contest_id_counts=%s",
+            int(len(dkentries.entries)),
+            counts,
+        )
         contests = dkentries.entries[["contest_id"]].drop_duplicates().reset_index(drop=True)
 
         # DK API fetch + caching

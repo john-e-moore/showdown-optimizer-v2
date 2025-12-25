@@ -48,9 +48,10 @@ def read_dkentries(path: Path) -> DkEntriesFile:
     DK uses repeated column names (e.g., FLEX 5 times); pandas disambiguates to:
       FLEX, FLEX.1, FLEX.2, FLEX.3, FLEX.4
     """
-    # Prescan the first chunk to detect multi-section DK exports:
-    # an "entries" section (header width N) followed by a "player list" section (header width M).
-    header_fields = None
+    # DK sometimes appends a trailing "player list" appendix with a different column width.
+    # We keep a small prescan only for diagnostics; the ParserError fallback MUST work even if
+    # the appendix begins after the prescan window (e.g. large MME files).
+    header_fields: Optional[int] = None
     mismatches: List[Dict[str, int]] = []
     try:
         with open(path, "r", encoding="utf-8-sig", errors="replace", newline="") as f:
@@ -58,14 +59,11 @@ def read_dkentries(path: Path) -> DkEntriesFile:
             for i, row in enumerate(rdr, start=1):
                 if i == 1:
                     header_fields = len(row)
-                # only scan the first ~200 lines; enough to catch the common "player list" tail section
-                if i <= 200:
-                    if header_fields is not None and len(row) != header_fields and len(mismatches) < 20:
-                        mismatches.append({"line": i, "fields": len(row)})
-                else:
+                if i <= 200 and header_fields is not None and len(row) != header_fields and len(mismatches) < 20:
+                    mismatches.append({"line": i, "fields": len(row)})
+                if i > 200:
                     break
     except Exception:
-        # If prescan fails, we still attempt pandas; fallback may not be available.
         header_fields = None
         mismatches = []
 
@@ -73,15 +71,28 @@ def read_dkentries(path: Path) -> DkEntriesFile:
         raw = pd.read_csv(path, dtype=str, keep_default_na=False)
     except Exception as e:
         # If this is a multi-section DKEntries export (entries + player list section),
-        # parse only the first section which matches the header width.
-        if type(e).__name__ == "ParserError" and header_fields and mismatches:
+        # parse only rows which match the header width.
+        if type(e).__name__ == "ParserError":
+            # Determine header width from line 1 (do NOT require mismatches to be detected in prescan).
+            if header_fields is None:
+                try:
+                    with open(path, "r", encoding="utf-8-sig", errors="replace", newline="") as f:
+                        rdr = csv.reader(f, delimiter=",", quotechar='"')
+                        first = next(rdr, None)
+                        header_fields = None if first is None else len(first)
+                except Exception:
+                    header_fields = None
+            if header_fields is None:
+                raise
             buf = io.StringIO()
             with open(path, "r", encoding="utf-8-sig", errors="replace", newline="") as f:
                 rdr = csv.reader(f, delimiter=",", quotechar='"')
                 w = csv.writer(buf, lineterminator="\n")
                 for i, row in enumerate(rdr, start=1):
-                    if header_fields is not None and i > 1 and len(row) != header_fields:
-                        break
+                    # Keep the header, then keep only rows that match the header width.
+                    # DK often appends a "player list" section with a different width; skip it.
+                    if i > 1 and len(row) != header_fields:
+                        continue
                     w.writerow(row)
             buf.seek(0)
             raw = pd.read_csv(buf, dtype=str, keep_default_na=False)
