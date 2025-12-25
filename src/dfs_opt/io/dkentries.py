@@ -89,10 +89,20 @@ def read_dkentries(path: Path) -> DkEntriesFile:
                 rdr = csv.reader(f, delimiter=",", quotechar='"')
                 w = csv.writer(buf, lineterminator="\n")
                 for i, row in enumerate(rdr, start=1):
-                    # Keep the header, then keep only rows that match the header width.
-                    # DK often appends a "player list" section with a different width; skip it.
-                    if i > 1 and len(row) != header_fields:
-                        continue
+                    # Normalize to the header width.
+                    #
+                    # DK exports can either:
+                    # - append a separate player-list section with a different width, or
+                    # - append player-list columns onto the same lines as the entry rows.
+                    #
+                    # We must keep all entry rows. So instead of skipping mismatched rows, we:
+                    # - truncate extra columns to header width
+                    # - pad short rows with empty strings
+                    if i > 1:
+                        if len(row) > header_fields:
+                            row = row[:header_fields]
+                        elif len(row) < header_fields:
+                            row = row + ([""] * (header_fields - len(row)))
                     w.writerow(row)
             buf.seek(0)
             raw = pd.read_csv(buf, dtype=str, keep_default_na=False)
