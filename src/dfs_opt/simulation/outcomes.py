@@ -106,3 +106,32 @@ def simulate_correlated_normals(
     return spec.mean[None, :] + x * spec.std[None, :]
 
 
+def simulate_correlated_normals_batches(
+    spec: OutcomeSimSpec,
+    *,
+    num_sims: int,
+    seed: int,
+    batch_sims: int,
+):
+    """
+    Yield draws in batches to avoid allocating [num_sims, n_players] at once.
+
+    Each yielded batch is shaped [b, n_players]. The RNG stream matches drawing all
+    samples at once (same seed => same sequence), modulo floating-point associativity
+    in downstream consumers.
+    """
+    if int(batch_sims) <= 0:
+        raise ValueError(f"batch_sims must be > 0, got {batch_sims}")
+    rng = np.random.default_rng(int(seed))
+    n = int(spec.mean.shape[0])
+    L = np.linalg.cholesky(spec.corr.astype(np.float64, copy=False))
+
+    remaining = int(num_sims)
+    while remaining > 0:
+        b = min(int(batch_sims), remaining)
+        z = rng.standard_normal(size=(b, n), dtype=np.float64)
+        x = z @ L.T
+        yield spec.mean[None, :] + x * spec.std[None, :]
+        remaining -= b
+
+
