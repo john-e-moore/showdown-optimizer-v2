@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Sequence, Tuple
 
 import csv
-import io
 
 import numpy as np
 import pandas as pd
@@ -22,12 +21,13 @@ class DkEntriesFile:
     We keep:
     - `raw`: the entries section as read from the CSV (rows with entry_id present)
     - `entries`: a normalized view with canonical columns + an `_row_idx` for stable updates
-    - `slot_cols`: the concrete CSV column names used for CPT/UTIL slots (so we can write back)
+    - `slot_cols`: the concrete CSV *column indices* used for CPT/UTIL slots (so we can write back even
+      when DK repeats column names like UTIL 5x)
     """
 
     raw: pd.DataFrame
     entries: pd.DataFrame
-    slot_cols: Dict[str, str]  # canonical slot -> raw column name
+    slot_cols: Dict[str, int]  # canonical slot -> raw column index
 
 
 def _normalize_columns(cols: Sequence[str]) -> List[str]:
@@ -48,72 +48,42 @@ def read_dkentries(path: Path) -> DkEntriesFile:
     DK uses repeated column names (e.g., FLEX 5 times); pandas disambiguates to:
       FLEX, FLEX.1, FLEX.2, FLEX.3, FLEX.4
     """
-    # DK sometimes appends a trailing "player list" appendix with a different column width.
-    # We keep a small prescan only for diagnostics; the ParserError fallback MUST work even if
-    # the appendix begins after the prescan window (e.g. large MME files).
-    header_fields: Optional[int] = None
-    mismatches: List[Dict[str, int]] = []
-    try:
-        with open(path, "r", encoding="utf-8-sig", errors="replace", newline="") as f:
-            rdr = csv.reader(f, delimiter=",", quotechar='"')
-            for i, row in enumerate(rdr, start=1):
-                if i == 1:
-                    header_fields = len(row)
-                if i <= 200 and header_fields is not None and len(row) != header_fields and len(mismatches) < 20:
-                    mismatches.append({"line": i, "fields": len(row)})
-                if i > 200:
-                    break
-    except Exception:
-        header_fields = None
-        mismatches = []
+    # DK often repeats column names (e.g., UTIL 5x). pandas.read_csv will mangle duplicates
+    # into UTIL, UTIL.1, ... which then propagates into DKEntries_filled.csv.
+    #
+    # We instead parse with csv.reader and build a DataFrame while preserving the original
+    # header fields exactly (including duplicates). We also normalize each row to the header
+    # width to safely handle the trailing player-list appendix or appended columns.
+    with open(path, "r", encoding="utf-8-sig", errors="replace", newline="") as f:
+        rdr = csv.reader(f, delimiter=",", quotechar='"')
+        header = next(rdr, None)
+        if header is None:
+            raise ValueError(f"{path}: empty file")
+        header_fields = len(header)
+        rows: List[List[str]] = []
+        for row in rdr:
+            if len(row) > header_fields:
+                row = row[:header_fields]
+            elif len(row) < header_fields:
+                row = row + ([""] * (header_fields - len(row)))
+            rows.append(row)
 
-    try:
-        raw = pd.read_csv(path, dtype=str, keep_default_na=False)
-    except Exception as e:
-        # If this is a multi-section DKEntries export (entries + player list section),
-        # parse only rows which match the header width.
-        if type(e).__name__ == "ParserError":
-            # Determine header width from line 1 (do NOT require mismatches to be detected in prescan).
-            if header_fields is None:
-                try:
-                    with open(path, "r", encoding="utf-8-sig", errors="replace", newline="") as f:
-                        rdr = csv.reader(f, delimiter=",", quotechar='"')
-                        first = next(rdr, None)
-                        header_fields = None if first is None else len(first)
-                except Exception:
-                    header_fields = None
-            if header_fields is None:
-                raise
-            buf = io.StringIO()
-            with open(path, "r", encoding="utf-8-sig", errors="replace", newline="") as f:
-                rdr = csv.reader(f, delimiter=",", quotechar='"')
-                w = csv.writer(buf, lineterminator="\n")
-                for i, row in enumerate(rdr, start=1):
-                    # Normalize to the header width.
-                    #
-                    # DK exports can either:
-                    # - append a separate player-list section with a different width, or
-                    # - append player-list columns onto the same lines as the entry rows.
-                    #
-                    # We must keep all entry rows. So instead of skipping mismatched rows, we:
-                    # - truncate extra columns to header width
-                    # - pad short rows with empty strings
-                    if i > 1:
-                        if len(row) > header_fields:
-                            row = row[:header_fields]
-                        elif len(row) < header_fields:
-                            row = row + ([""] * (header_fields - len(row)))
-                    w.writerow(row)
-            buf.seek(0)
-            raw = pd.read_csv(buf, dtype=str, keep_default_na=False)
-        else:
-            raise
+    raw = pd.DataFrame(rows, columns=header)
 
-    raw = raw.loc[:, [c for c in raw.columns if str(c).strip() != "" and not str(c).startswith("Unnamed:")]].copy()
+    # IMPORTANT: when column names contain duplicates (e.g. UTIL repeated 5x), selecting
+    # columns by label can "explode" duplicates (each 'UTIL' label selects all UTIL cols).
+    # Filter by *position* instead.
+    keep_idxs = [
+        i
+        for i, c in enumerate(list(raw.columns))
+        if str(c).strip() != "" and not str(c).startswith("Unnamed:")
+    ]
+    raw = raw.iloc[:, keep_idxs].copy()
 
-    cols_norm = _normalize_columns(raw.columns)
-    colmap = dict(zip(raw.columns, cols_norm))
-    df = raw.rename(columns=colmap).copy()
+    cols_norm = _normalize_columns(list(raw.columns))
+    # Keep duplicates: assign a normalized column list (not a dict rename which would collapse dupes).
+    df = raw.copy()
+    df.columns = cols_norm
 
     entry_id_col = _pick_first(df, ["entry id", "entryid", "entry_id"])
     contest_id_col = _pick_first(df, ["contest id", "contestid", "contest_id"])
@@ -122,39 +92,40 @@ def read_dkentries(path: Path) -> DkEntriesFile:
 
     # Keep only entry rows (DK appends a player list section with empty Entry ID)
     entry_mask = df[entry_id_col].astype(str).str.strip() != ""
-    entries_raw = raw.loc[entry_mask].copy()
-    entries_norm = df.loc[entry_mask].copy()
+    entries_raw = raw.loc[entry_mask].copy().reset_index(drop=True)
+    entries_norm = df.loc[entry_mask].copy().reset_index(drop=True)
     entries_norm["_row_idx"] = np.arange(len(entries_norm), dtype=np.int64)
 
-    # Slot columns: CPT + 5 flex/util columns (varies by export)
-    cpt_col = _pick_first(entries_norm, ["cpt", "captain"])
-    # Common showdown exports: FLEX, FLEX.1.. or UTIL, UTIL.1..
-    flex_cols = [c for c in entries_norm.columns if c.startswith("flex")]
-    util_cols = [c for c in entries_norm.columns if c.startswith("util")]
-    slot_flex = flex_cols if flex_cols else util_cols
+    # Slot columns: CPT + 5 flex/util columns (varies by export).
+    # Use *positions* so we can handle duplicate column names (e.g. UTIL repeated 5x).
+    cols_norm_entries = list(entries_norm.columns)
+    try:
+        cpt_idx = next(i for i, c in enumerate(cols_norm_entries) if c in ("cpt", "captain"))
+    except StopIteration as e:
+        raise ValueError(f"{path}: missing captain slot column (CPT/Captain); got {list(raw.columns)}") from e
 
-    if cpt_col is None:
-        raise ValueError(f"{path}: missing captain slot column (CPT/Captain); got {list(raw.columns)}")
-    if len(slot_flex) < 5:
-        raise ValueError(f"{path}: expected 5 FLEX/UTIL columns; got {slot_flex}")
+    flex_idxs = [i for i, c in enumerate(cols_norm_entries) if isinstance(c, str) and c.startswith("flex")]
+    util_idxs = [i for i, c in enumerate(cols_norm_entries) if isinstance(c, str) and c.startswith("util")]
+    slot_flex_idxs = flex_idxs if flex_idxs else util_idxs
+    slot_flex_idxs = [i for i in slot_flex_idxs if cols_norm_entries[i] != "_row_idx"]
+    slot_flex_idxs = slot_flex_idxs[:5]
 
-    slot_flex = sorted(slot_flex, key=lambda s: (len(s), s))[:5]
+    if len(slot_flex_idxs) < 5:
+        got = [cols_norm_entries[i] for i in (flex_idxs if flex_idxs else util_idxs)]
+        raise ValueError(f"{path}: expected 5 FLEX/UTIL columns; got {got}")
 
     # Build canonical view
     entries = pd.DataFrame()
     entries["_row_idx"] = entries_norm["_row_idx"].astype(int)
     entries["entry_id"] = entries_norm[entry_id_col].astype(str)
     entries["contest_id"] = entries_norm[contest_id_col].astype(str)
-    entries["cpt"] = entries_norm[cpt_col].astype(str)
-    for i, c in enumerate(slot_flex, start=1):
-        entries[f"util{i}"] = entries_norm[c].astype(str)
+    entries["cpt"] = entries_norm.iloc[:, cpt_idx].astype(str)
+    for i, idx in enumerate(slot_flex_idxs, start=1):
+        entries[f"util{i}"] = entries_norm.iloc[:, idx].astype(str)
 
-    slot_cols_raw: Dict[str, str] = {
-        "cpt": _find_raw_col(raw.columns, colmap, cpt_col),
-        **{
-            f"util{i}": _find_raw_col(raw.columns, colmap, slot_flex[i - 1])
-            for i in range(1, 6)
-        },
+    slot_cols_raw: Dict[str, int] = {
+        "cpt": int(cpt_idx),
+        **{f"util{i}": int(slot_flex_idxs[i - 1]) for i in range(1, 6)},
     }
 
     # Preserve raw entries section for passthrough write-back.
@@ -257,7 +228,6 @@ def fill_dkentries_with_assignments(
 
     # Fill entries in the same order as they appear in dkentries.entries
     for contest_id, chosen in assignments.items():
-        mask = out["Contest ID"].astype(str) == str(contest_id) if "Contest ID" in out.columns else out[dkentries.slot_cols.get("contest_id","Contest ID")].astype(str) == str(contest_id)
         # Use normalized entries order to align.
         entry_rows = dkentries.entries[dkentries.entries["contest_id"].astype(str) == str(contest_id)]
         if len(entry_rows) != len(chosen):
@@ -267,12 +237,12 @@ def fill_dkentries_with_assignments(
         for i, lid in enumerate(chosen):
             row_pos = raw_idx[i]
             slots = lineups.iloc[int(lid)]
-            out.at[out.index[row_pos], dkentries.slot_cols["cpt"]] = fmt_player(int(slots["cpt"]))
-            out.at[out.index[row_pos], dkentries.slot_cols["util1"]] = fmt_player(int(slots["u1"]))
-            out.at[out.index[row_pos], dkentries.slot_cols["util2"]] = fmt_player(int(slots["u2"]))
-            out.at[out.index[row_pos], dkentries.slot_cols["util3"]] = fmt_player(int(slots["u3"]))
-            out.at[out.index[row_pos], dkentries.slot_cols["util4"]] = fmt_player(int(slots["u4"]))
-            out.at[out.index[row_pos], dkentries.slot_cols["util5"]] = fmt_player(int(slots["u5"]))
+            out.iloc[row_pos, dkentries.slot_cols["cpt"]] = fmt_player(int(slots["cpt"]))
+            out.iloc[row_pos, dkentries.slot_cols["util1"]] = fmt_player(int(slots["u1"]))
+            out.iloc[row_pos, dkentries.slot_cols["util2"]] = fmt_player(int(slots["u2"]))
+            out.iloc[row_pos, dkentries.slot_cols["util3"]] = fmt_player(int(slots["u3"]))
+            out.iloc[row_pos, dkentries.slot_cols["util4"]] = fmt_player(int(slots["u4"]))
+            out.iloc[row_pos, dkentries.slot_cols["util5"]] = fmt_player(int(slots["u5"]))
 
     return out
 

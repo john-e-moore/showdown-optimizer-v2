@@ -36,6 +36,10 @@ def test_read_dkentries_skips_player_list_section_and_keeps_all_entry_rows(tmp_p
     dk = read_dkentries(p)
     assert len(dk.entries) == 28
     assert set(dk.entries["contest_id"].astype(str).tolist()) == {contest_id}
+    # Ensure we preserve DK's repeated UTIL columns (do not mangle into UTIL.1, UTIL.2, ...)
+    util_cols = [c for c in dk.raw.columns.tolist() if str(c) == "UTIL"]
+    assert len(util_cols) == 5
+    assert not any(str(c).startswith("UTIL.") for c in dk.raw.columns.tolist())
 
 
 def test_read_dkentries_keeps_all_entry_rows_when_appendix_begins_after_200_lines(tmp_path: Path) -> None:
