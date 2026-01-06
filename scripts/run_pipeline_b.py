@@ -17,12 +17,12 @@ from dfs_opt.pipelines.contest import run_contest_pipeline
 # -----------------------------------------------------------------------------
 
 # Inputs
-PROJECTION_CSV = Path("data/inputs/NBA_2025-12-25-1030pm_DK_SHOWDOWN_MIN-@-DEN.csv")
-CORR_MATRIX_CSV = Path("data/inputs/NBA_2025-12-25-1030pm_DK_SHOWDOWN_MIN-@-DEN_corr_matrix.csv")
+PROJECTION_CSV = Path("data/inputs/NBA_2026-01-06-700pm_DK_SHOWDOWN_CLE-@-IND.csv")
+CORR_MATRIX_CSV = Path("data/inputs/NBA_2026-01-06-700pm_DK_SHOWDOWN_CLE-@-IND_corr_matrix.csv")
 DKENTRIES_CSV = Path("data/inputs/DKEntries.csv")
 
 # Slate identifiers (purely for logging/manifests)
-SLATE_ID = "NBA_2025-12-25_MIN_DEN"
+SLATE_ID = "NBA_2026-01-06-700pm_DK_SHOWDOWN_CLE-@-IND"
 SPORT = "nba"
 
 # Share model
@@ -49,7 +49,7 @@ PRUNE_MASS_THRESHOLD = 0.98
 DIRICHLET_ALPHA = None  # set e.g. 50.0 for heavier-tail duplication; None disables
 
 # Grading
-NUM_SIMS = 20000
+NUM_SIMS = 100000
 STD_MODE = "dk_std_or_fallback"
 STD_SCALE = 1.0
 TIE_BREAK = "lineup_id"

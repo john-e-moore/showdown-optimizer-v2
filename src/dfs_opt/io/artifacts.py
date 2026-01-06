@@ -77,15 +77,32 @@ class ArtifactWriter:
         schema_path = step_path / "schema.json"
         schema_path.write_text(json.dumps(schema_info, indent=2, sort_keys=True), encoding="utf-8")
 
+        warnings_out: list[Dict[str, Any]] = list(warnings)
+
         parquet_path = None
         if persist_parquet:
-            parquet_path = step_path / "outputs.parquet"
-            df_out.to_parquet(parquet_path, index=False)
+            if not df_out.columns.is_unique:
+                # PyArrow/Pandas parquet writer refuses duplicate column names (common in DK templates).
+                # We still persist preview/schema/manifest so the step is inspectable.
+                warnings_out.append(
+                    {
+                        "type": "parquet_skipped_duplicate_columns",
+                        "message": "Skipped outputs.parquet because df_out has duplicate column names.",
+                        "duplicate_columns": [str(c) for c in list(df_out.columns)],
+                    }
+                )
+            else:
+                parquet_path = step_path / "outputs.parquet"
+                df_out.to_parquet(parquet_path, index=False)
 
         finished_at = utc_now()
         duration_s = time.perf_counter() - t0
 
-        cols_and_dtypes: Iterable[tuple[str, str]] = ((c, str(df_out[c].dtype)) for c in df_out.columns)
+        # Same duplicate-column caveat as _schema_json(): iterate by position.
+        # Also include the position in the column key so the fingerprint is stable even with duplicates.
+        cols_and_dtypes: Iterable[tuple[str, str]] = (
+            (f"{str(c)}@{i}", str(df_out.iloc[:, i].dtype)) for i, c in enumerate(list(df_out.columns))
+        )
         sfp = schema_fingerprint(cols_and_dtypes)
         dfp = data_fingerprint(preview.to_dict(orient="records"))
 
@@ -126,7 +143,7 @@ class ArtifactWriter:
             schema_fingerprint=sfp,
             data_fingerprint=dfp,
             metrics=metrics,
-            warnings=list(warnings),
+            warnings=warnings_out,
             errors=[],
         )
 
@@ -141,12 +158,15 @@ class ArtifactWriter:
 
 def _schema_json(df: pd.DataFrame) -> Dict[str, Any]:
     cols = []
-    for c in df.columns:
-        s = df[c]
+    # IMPORTANT: pandas allows duplicate column names. In that case, df[c] returns a DataFrame,
+    # and s.isna().sum() becomes a Series which can't be cast to int. Iterate by position.
+    for i, c in enumerate(list(df.columns)):
+        s = df.iloc[:, i]
         nulls = int(s.isna().sum())
         cols.append(
             {
-                "name": c,
+                "name": str(c),
+                "position": int(i),
                 "dtype": str(s.dtype),
                 "null_count": nulls,
                 "null_rate": float(nulls / max(1, len(df))),
