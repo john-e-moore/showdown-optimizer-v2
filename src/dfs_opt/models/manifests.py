@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field
 
 
 class ManifestIO(BaseModel):
@@ -13,9 +13,11 @@ class ManifestIO(BaseModel):
 
 
 class StructuredWarning(BaseModel):
-    code: str
+    # Accept either 'code' (preferred) or legacy 'type' as input.
+    code: str = Field(validation_alias=AliasChoices("code", "type"))
     message: str
     sample_rows: Optional[List[Dict[str, Any]]] = None
+    details: Dict[str, Any] = Field(default_factory=dict)
 
 
 class StepManifest(BaseModel):

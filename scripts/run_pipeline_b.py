@@ -17,12 +17,12 @@ from dfs_opt.pipelines.contest import run_contest_pipeline
 # -----------------------------------------------------------------------------
 
 # Inputs
-PROJECTION_CSV = Path("data/inputs/NBA_2026-01-06-700pm_DK_SHOWDOWN_CLE-@-IND.csv")
-CORR_MATRIX_CSV = Path("data/inputs/NBA_2026-01-06-700pm_DK_SHOWDOWN_CLE-@-IND_corr_matrix.csv")
+PROJECTION_CSV = Path("data/inputs/NBA_2026-01-07-730pm_DK_SHOWDOWN_LAC-@-NYK.csv")
+CORR_MATRIX_CSV = Path("data/inputs/NBA_2026-01-07-730pm_DK_SHOWDOWN_LAC-@-NYK_corr_matrix.csv")
 DKENTRIES_CSV = Path("data/inputs/DKEntries.csv")
 
 # Slate identifiers (purely for logging/manifests)
-SLATE_ID = "NBA_2026-01-06-700pm_DK_SHOWDOWN_CLE-@-IND"
+SLATE_ID = "NBA_2026-01-07-730pm_DK_SHOWDOWN_LAC-@-NYK"
 SPORT = "nba"
 
 # Share model

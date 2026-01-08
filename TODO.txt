@@ -1,7 +1,10 @@
-- New branch: Train and test model. Note fit and error rates and stuff; talk to ChatGPT about how to evaluate performance.
-- New branch: Generate field lineups, run sim and grade trimmed universe lineups for a single contest.
-- New branch: Grab all contest id's from DKEntries.csv, sim all of them, and assign top X lineups to the contest.
-- New branch: Diversification. Talk to ChatGPT about how to do this.
+x New branch: Train and test model. Note fit and error rates and stuff; talk to ChatGPT about how to evaluate performance.
+x New branch: Generate field lineups, run sim and grade trimmed universe lineups for a single contest.
+x New branch: Grab all contest id's from DKEntries.csv, sim all of them, and assign top X lineups to the contest.
+x Needs to be much faster - figure out a way to trim lineups before grading.
+xxx New branch: Diversification. Talk to ChatGPT about how to do this.
+- Fix UTIL.1, UTIL.2 etc. column names in DKEntries_filled.csv
+- Archive artifacts to S3 - make a script that uploads to S3 then deletes if successful.
 - Update PIPELINES.md 
 - Update the target distribution pipeline to include our new features and bins (if we are even using it for anything).
 - S3 data storage.

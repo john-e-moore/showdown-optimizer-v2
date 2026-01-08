@@ -1,0 +1,45 @@
+Pipeline A first run notes
+x We need to write info logs
+x I don't understand the CPT tiers - explain?
+ x It's captain salary rank. So 1-2 is the chalk / expensive guys, 11+ means cheap "value" CPT.
+x Where are the different gpp-categories listed? I want to run NBA GPP with 10k+ next.
+ x They are generated dynamically - not sure I like this.
+x Do I not have any 10k+ NBA contests? Inspect manually. Otherwise the "10k+" isn't being read correctly.
+ x If that is true, store static contest bins
+ x I do, changing from dynamic to static.
+x Change gpp-category from dynamic to static.
+x Debug NBA 10k+ empty after parsing.
+x Make sure all contests are being read correctly for size - run full pipeline
+x I need all distributions saved to same place so I can feed it to pipeline b. I suppose this is taken care of when I run for all sizes instead of just one bucket.
+x Ran the whole thing and I only see 1 distribution written. Fix this first tmw.
+x Do I need to correct name normalization and dropping zeroes to get full coverage?
+ x I don't think so because this is just the training pipeline.
+x Add 'ownership score' (sum ownership?) to features
+x Add 'corr score' to features
+ x Need to scrape sabersim correlations for all my historical NBA slates
+ x Talk to ChatGPT about how to compute corr score - which single number best captures this?
+x Transform 'dup count' into '% of field lineups' - this will be the target
+x Use features to predict target: "Lineup share of field"
+ x For example, if a lineup is predicted to be present 3 times in a fieild of 100 the number is 0.03
+- Build master lineup universe (start with just NBA, for which we can enumerate)
+- Predict "Lineup share of field" for the entire universe of lineups
+- Drop lineups that are never in the field
+- For each contest, draw a field from the master universe (normalize lineup share of field if necessary?)
+- Sim the GPP X times
+ - Simulate player outcomes X times
+ - Compute lineup scores, GPP outcomes, and ROI for each of X player outcomes
+- Rank lineups by avg. ROI in simulated GPPs
+- Trim to lineups with ROI > 1.0
+- Diversification stuff - borrow from other showdown optimizer
+- Write dkentries file
+
+ChatGPT Pro convo:
+https://chatgpt.com/g/g-p-6909519490748191aa1e2b9d9fac4fad-dfs-optimizer/c/6942c441-3398-8325-bab8-e09f103aaa1b
+
+
+
+- Cluster and define 3-5 "field brains" as simple weight functions over that universe (use example brains from GPT pro)
+- Generate a 200k candidate pool (realistic lineups) with brain quotas
+- Confirm the pool can be reweighted to match historical targets without weight collapse
+
+- UTIL / FLEX separation for NBA / NFL

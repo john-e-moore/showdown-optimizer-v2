@@ -6,6 +6,8 @@ import pandas as pd
 import pytest
 
 from dfs_opt.config.settings import TrainingConfig
+from dfs_opt.io.artifacts import ArtifactWriter, new_run_id
+from dfs_opt.models.manifests import StepManifest
 from dfs_opt.pipelines.training import run_training_pipeline
 
 
@@ -202,5 +204,36 @@ def test_training_pipeline_fails_fast_on_unknown_gpp_category(tmp_path: Path) ->
     )
     with pytest.raises(ValueError, match=r"Unknown gpp_category"):
         run_training_pipeline(cfg)
+
+
+def test_artifact_writer_handles_duplicate_columns_when_persist_parquet(tmp_path: Path) -> None:
+    artifacts_root = tmp_path / "artifacts"
+    writer = ArtifactWriter(artifacts_root=artifacts_root, pipeline="training", run_id=new_run_id())
+    writer.init_run_dirs()
+
+    # Duplicate column name "UTIL" to mimic DK template collisions.
+    df_out = pd.DataFrame([[1, 2, 3]], columns=["CPT", "UTIL", "UTIL"])
+
+    manifest = writer.write_step(
+        step_idx=0,
+        step_name="dup_cols",
+        df_in=None,
+        df_out=df_out,
+        inputs=[],
+        outputs=[],
+        metrics={},
+        warnings=[],
+        persist_parquet=True,
+    )
+
+    assert isinstance(manifest, StepManifest)
+    assert len(manifest.warnings) == 1
+    assert manifest.warnings[0].code == "parquet_skipped_duplicate_columns"
+    assert "duplicate_columns" in manifest.warnings[0].details
+    # Still writes inspectable sidecars.
+    step_dir = Path(writer.step_dir(0, "dup_cols"))
+    assert (step_dir / "preview.csv").exists()
+    assert (step_dir / "schema.json").exists()
+    assert (step_dir / "step_manifest.json").exists()
 
 

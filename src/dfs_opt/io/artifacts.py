@@ -9,7 +9,7 @@ from typing import Any, Dict, Iterable, Optional, Sequence, Tuple
 
 import pandas as pd
 
-from dfs_opt.models.manifests import ManifestIO, StepManifest
+from dfs_opt.models.manifests import ManifestIO, StepManifest, StructuredWarning
 from dfs_opt.utils.hashing import data_fingerprint, schema_fingerprint, sha256_file, sha256_hex
 
 
@@ -77,18 +77,19 @@ class ArtifactWriter:
         schema_path = step_path / "schema.json"
         schema_path.write_text(json.dumps(schema_info, indent=2, sort_keys=True), encoding="utf-8")
 
-        warnings_out: list[Dict[str, Any]] = list(warnings)
+        warnings_out_raw: list[Dict[str, Any]] = list(warnings)
 
         parquet_path = None
         if persist_parquet:
             if not df_out.columns.is_unique:
                 # PyArrow/Pandas parquet writer refuses duplicate column names (common in DK templates).
                 # We still persist preview/schema/manifest so the step is inspectable.
-                warnings_out.append(
+                dup_cols = df_out.columns[df_out.columns.duplicated()].tolist()
+                warnings_out_raw.append(
                     {
-                        "type": "parquet_skipped_duplicate_columns",
+                        "code": "parquet_skipped_duplicate_columns",
                         "message": "Skipped outputs.parquet because df_out has duplicate column names.",
-                        "duplicate_columns": [str(c) for c in list(df_out.columns)],
+                        "details": {"duplicate_columns": [str(c) for c in dup_cols]},
                     }
                 )
             else:
@@ -104,7 +105,9 @@ class ArtifactWriter:
             (f"{str(c)}@{i}", str(df_out.iloc[:, i].dtype)) for i, c in enumerate(list(df_out.columns))
         )
         sfp = schema_fingerprint(cols_and_dtypes)
-        dfp = data_fingerprint(preview.to_dict(orient="records"))
+        dfp = data_fingerprint(_preview_rows_for_fingerprint(preview))
+
+        warnings_out = [StructuredWarning.model_validate(w) for w in warnings_out_raw]
 
         manifest = StepManifest(
             run_id=self.run_id,
@@ -173,6 +176,20 @@ def _schema_json(df: pd.DataFrame) -> Dict[str, Any]:
             }
         )
     return {"num_rows": int(len(df)), "columns": cols}
+
+
+def _preview_rows_for_fingerprint(preview: pd.DataFrame) -> list[Dict[str, object]]:
+    """
+    Build a stable, JSON-serializable preview payload for hashing.
+
+    IMPORTANT: pandas allows duplicate column names. In that case, preview.to_dict(orient="records")
+    both warns and drops columns. We iterate by position and disambiguate keys with "@{i}".
+    """
+    keys = [f"{str(c)}@{i}" for i, c in enumerate(list(preview.columns))]
+    out: list[Dict[str, object]] = []
+    for row in preview.itertuples(index=False, name=None):
+        out.append(dict(zip(keys, row, strict=True)))
+    return out
 
 
 def to_jsonable(obj: Any) -> Any:
