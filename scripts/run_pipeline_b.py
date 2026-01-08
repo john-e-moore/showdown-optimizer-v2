@@ -16,14 +16,14 @@ from dfs_opt.pipelines.contest import run_contest_pipeline
 # CONFIG: edit these values
 # -----------------------------------------------------------------------------
 
-# Inputs
-PROJECTION_CSV = Path("data/inputs/NBA_2026-01-07-730pm_DK_SHOWDOWN_LAC-@-NYK.csv")
-CORR_MATRIX_CSV = Path("data/inputs/NBA_2026-01-07-730pm_DK_SHOWDOWN_LAC-@-NYK_corr_matrix.csv")
-DKENTRIES_CSV = Path("data/inputs/DKEntries.csv")
-
 # Slate identifiers (purely for logging/manifests)
-SLATE_ID = "NBA_2026-01-07-730pm_DK_SHOWDOWN_LAC-@-NYK"
+SLATE_ID = "NBA_2026-01-07-930pm_DK_SHOWDOWN_LAL-@-SAS"
 SPORT = "nba"
+
+# Inputs
+PROJECTION_CSV = Path(f"data/inputs/{SLATE_ID}.csv")
+CORR_MATRIX_CSV = Path(f"data/inputs/{SLATE_ID}_corr_matrix.csv")
+DKENTRIES_CSV = Path("data/inputs/DKEntries.csv")
 
 # Share model
 THETA_JSON = Path(
